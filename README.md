@@ -17,6 +17,26 @@
 
 ---
 
+## 主页八大卡片与电台接口映射 (Home Cards & Radio Architecture)
+
+Lazer 播放器主页顶部设置了 4 个快捷推荐卡片，中下方设置了【为你创建的电台】流。除【反复聆听】由 Lazer 本地历史驱动外，其余卡片均深度对接了酷狗推荐算法与 OpenAPI。参考 [KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) 的接口实现映射如下：
+
+| 卡片名称 | 位置分类 | Lazer 宿主契约 / 事件 | 酷狗后端接口端点 | 参考 `KugouMusic.NET` 源码位置 | 机制与流转说明 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **今日限定好歌**<br>*(随机发现)* | 顶部快捷卡片 #1 | `onDaily` / `homeFeed.daily`<br>`MusicCapability.recommendations` | `POST /everyday_song_recommend`<br>(路由: `everydayrec.service.kugou.com`) | [`RawDiscoveryApi.cs` (L108-L128)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L108-L128)<br>`GetRecommendSongAsync` | 根据已登录用户历史画像，由酷狗算法引擎动态下发 30 首私人专属日推曲目，点击打开完整虚拟歌单。 |
+| **私人漫游** | 顶部快捷卡片 #2 | `onFm`<br>`activeGateway.radio(personal)` | `POST /v1/rcmd_list`<br>(路由: `fm.service.kugou.com`) | [`RawFmApi.cs` (L13-L33)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawFmApi.cs#L13-L33)<br>`GetRecommendAsync` | 私人 FM 推荐流，根据当前听歌上下文进行不间断的智能漫游切歌。 |
+| **心动模式** | 顶部快捷卡片 #3 | `onHeart`<br>`activeGateway.radio(heart)` | `POST /everyday_style_recommend`<br>(路由: `everydayrec.service.kugou.com`) | [`RawDiscoveryApi.cs` (L131-L148)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L131-L148)<br>`GetRecommendStyleSongAsync` | 风格雷达推荐，拉取与用户收藏偏好契合的相似风格曲目。 |
+| **反复聆听** | 顶部快捷卡片 #4 | `onReplay`<br>`widget.state.playQueue(recent)` | *客户端本地回放队列* | [`home_pages.dart` (L180)](https://github.com/chuxuehaocai/Lazer/blob/main/lib/ui/home_pages.dart#L180)<br>`widget.state.playQueue(recent)` | **纯本地闭环**：无需外部请求，直接从 Lazer 本地播放历史记录中拉起最近播放列表循环起播。 |
+| **私人漫游** | 电台专栏 #1 | `_StationStrip.onFm`<br>`activeGateway.radio(personal)` | `POST /v1/rcmd_list`<br>(路由: `fm.service.kugou.com`) | [`RawFmApi.cs` (L60-L75)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawFmApi.cs#L60-L75)<br>`GetClassSongAsync` | 电台形式呈现的算法探索频道，支持连续流式加载更多相关歌曲。 |
+| **红心随机** | 电台专栏 #2 | `_StationStrip.onLiked`<br>取 `collections.liked` 乱序播放 | `POST /v4/get_list_all_file`<br>(路由: `cloudlist.service.kugou.com`) | [`RawPlaylistApi.cs` (L122-L145)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawPlaylistApi.cs#L122-L145)<br>`GetSongsAsync (listid=1)` | 同步云端默认收藏（红心）歌单，获取全部收藏曲目后在客户端进行 Fisher-Yates 乱序播放。 |
+| **心动模式** | 电台专栏 #3 | `_StationStrip.onHeart`<br>`activeGateway.radio(heart)` | `POST /everyday_style_recommend`<br>(路由: `everydayrec.service.kugou.com`) | [`RawDiscoveryApi.cs` (L131-L148)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L131-L148)<br>`GetRecommendStyleSongAsync` | 熟悉与新鲜交叉的电台模式，融合用户已有偏好与算法拓展曲目。 |
+| **歌手电台**<br>*(如: いよわ 电台)* | 电台专栏 #4 | `_StationStrip.onArtist`<br>`activeGateway.radio(artist, seed)` | `POST /kmr/v1/audio_group/author`<br>(路由: `openapi.kugou.com`, `kg-tid: 220`) | [`RawArtistApi.cs` (L179-L208)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawArtistApi.cs#L179-L208)<br>`GetAudiosAsync` | 提取当前播放曲目歌手 ID，流式获取该歌手热门及关联曲风列表生成专属电台。 |
+
+> **补充：用户资料与头像静默刷新机制**  
+> 每次 Lazer 宿主拉起会话校验（`checkSession`）时，插件通过 [`RawUserApi.cs` (L69-L99)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawUserApi.cs#L69-L99) 的 `/v7/get_all_list` 接口，自动静默比对酷狗云端的最新 `create_user_pic` 与 `list_create_username`，若手机端修改了资料将自动写回本地 `storage.json`，实现无感热同步。
+
+---
+
 ## 安装使用指南
 
 ### 方法一：通过 ZIP 导入（最简单）
