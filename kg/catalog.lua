@@ -25,8 +25,9 @@ function catalog.search(args)
   })
 
   local songList = {}
-  if res and res.status == 1 and res.data and res.data.info then
-    for _, item in ipairs(res.data.info) do
+  local rawList = res and res.data and (res.data.lists or res.data.info)
+  if rawList and type(rawList) == "table" then
+    for _, item in ipairs(rawList) do
       local song = models.song(item)
       if song and song.id ~= "" then
         table.insert(songList, song)

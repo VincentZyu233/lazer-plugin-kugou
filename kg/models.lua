@@ -46,7 +46,7 @@ function models.song(raw)
 
   local cover = raw.Image or raw.AlbumImg or raw.Img or raw.cover or ""
   if cover and cover ~= "" then
-    -- 酷狗图片链接模版修复，如 {size} 替换为 400
+    cover = cover:gsub("^http://", "https://")
     cover = cover:gsub("{size}", "400")
   end
 

@@ -37,15 +37,13 @@ function account.qrKey()
       srcappid = "2919",
       qrcode_txt = "https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=3116&"
     },
-    signType = "web",
-    clearDefaultParams = true
+    signType = "web"
   })
 
   if res and res.status == 1 and res.data and res.data.qrcode then
     local key = tostring(res.data.qrcode)
-    if res.data.url then
-      qrUrls[key] = res.data.url
-    end
+    local url = res.data.url or ("https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=3116&qrcode=" .. host.url_encode(key))
+    qrUrls[key] = url
     return key
   end
   return nil
@@ -75,8 +73,7 @@ function account.qrCheck(args)
       srcappid = "2919",
       qrcode = key
     },
-    signType = "web",
-    clearDefaultParams = true
+    signType = "web"
   })
 
   if not res then return 0 end
@@ -88,7 +85,7 @@ function account.qrCheck(args)
   -- status == 0 且 errcode == 20002 表示二维码过期
   if res.status == 1 and res.data then
     local qrStatus = tonumber(res.data.status)
-    if qrStatus == 1 then
+    if qrStatus == 1 and res.data.userid then
       -- 登录成功，保存 Session
       local s = transport.getSession()
       s.userId = tostring(res.data.userid or res.data.id or "0")
