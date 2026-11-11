@@ -4,56 +4,64 @@ local models = {}
 function models.song(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
-  local hash = raw.FileHash or raw.hash or raw.AudioHash or raw.HQFileHash or raw.SQFileHash or ""
+  local hash = raw.FileHash or raw.hash or raw.AudioHash or raw.HQFileHash or raw.SQFileHash or raw.hash_128 or raw.hash_320 or raw.hash_flac or ""
   if not hash or hash == "" then return nil end
 
-  local songName = raw.SongName or raw.songname or raw.OriSongName or ""
-  local singerName = raw.SingerName or raw.singername or ""
+  local songName = raw.SongName or raw.songname or raw.OriSongName or raw.audio_name or ""
+  local singerName = raw.SingerName or raw.singername or raw.author_name or ""
 
   -- 如果没有提取出 songName，但有 FileName (如 "歌手 - 歌名")
-  if songName == "" and raw.FileName then
-    local s, n = string.match(raw.FileName, "^(.-)%s*-%s*(.+)$")
+  if songName == "" and (raw.FileName or raw.filename) then
+    local fn = raw.FileName or raw.filename
+    local s, n = string.match(fn, "^(.-)%s*-%s*(.+)$")
     if s and n then
       if singerName == "" then singerName = s end
       songName = n
     else
-      songName = raw.FileName
+      songName = fn
     end
   end
 
-  -- 提取歌手列表，优先使用结构化的 Singers 数组
+  -- 提取歌手列表，优先使用结构化的 Singers / authors 数组
   local artists = {}
-  if raw.Singers and type(raw.Singers) == "table" and #raw.Singers > 0 then
-    for _, s in ipairs(raw.Singers) do
-      if s and s.name and s.name ~= "" then
+  local singerArr = raw.Singers or raw.authors or raw.singers
+  if singerArr and type(singerArr) == "table" and #singerArr > 0 then
+    for _, s in ipairs(singerArr) do
+      local name = s.name or s.author_name or s.singername
+      if name and name ~= "" then
         table.insert(artists, {
-          id = tostring(s.id or s.name),
-          name = tostring(s.name)
+          id = tostring(s.id or s.author_id or s.singerid or name),
+          name = tostring(name)
         })
       end
     end
   end
 
   if #artists == 0 and singerName ~= "" then
-    -- 如果是分隔符格式，安全提取
     table.insert(artists, {
-      id = tostring(raw.SingerID or raw.singer_id or singerName),
+      id = tostring(raw.SingerID or raw.singer_id or raw.author_id or singerName),
       name = tostring(singerName)
     })
   end
 
-  local cover = raw.Image or raw.AlbumImg or raw.Img or raw.cover or ""
+  -- 提取封面
+  local cover = raw.Image or raw.AlbumImg or raw.Img or raw.cover or raw.sizable_cover or ""
+  if (not cover or cover == "") and raw.trans_param and raw.trans_param.union_cover then
+    cover = raw.trans_param.union_cover
+  end
   if cover and cover ~= "" then
     cover = cover:gsub("^http://", "https://")
     cover = cover:gsub("{size}", "400")
   end
 
-  local durationSec = tonumber(raw.Duration or raw.duration or raw.timelength or 0)
+  -- 提取时长 (毫秒)
+  local durationSec = tonumber(raw.Duration or raw.duration or raw.timelength or raw.timelength_128 or 0)
   local durationMs = durationSec
   if durationSec and durationSec > 0 and durationSec < 10000 then
     durationMs = durationSec * 1000
   end
 
+  -- 提取专辑 ID 和名称
   local rawAlbumId = raw.AlbumID or raw.album_id or raw.AlbumId
   local albumId = nil
   if rawAlbumId and tostring(rawAlbumId) ~= "0" and tostring(rawAlbumId) ~= "" then
@@ -74,11 +82,77 @@ function models.song(raw)
   }
 end
 
+-- 歌手实体转换
+function models.artist(raw)
+  if not raw or type(raw) ~= "table" then return nil end
+
+  local avatar = raw.sizable_avatar or raw.avatar or raw.pic or raw.img or ""
+  if avatar and avatar ~= "" then
+    avatar = avatar:gsub("^http://", "https://")
+    avatar = avatar:gsub("{size}", "480")
+  end
+
+  return {
+    id = tostring(raw.author_id or raw.id or raw.singerid or ""),
+    name = tostring(raw.author_name or raw.name or raw.singername or "未知歌手"),
+    coverUrl = (avatar and avatar ~= "") and avatar or nil,
+    description = tostring(raw.intro or ""),
+    albumCount = tonumber(raw.album_count or 0),
+    songCount = tonumber(raw.song_count or 0)
+  }
+end
+
+-- 专辑实体转换
+function models.album(raw)
+  if not raw or type(raw) ~= "table" then return nil end
+
+  local cover = raw.sizable_cover or raw.cover or raw.pic or ""
+  if cover and cover ~= "" then
+    cover = cover:gsub("^http://", "https://")
+    cover = cover:gsub("{size}", "400")
+  end
+
+  local artists = {}
+  local authors = raw.authors or raw.Singers or raw.singers
+  if authors and type(authors) == "table" and #authors > 0 then
+    for _, a in ipairs(authors) do
+      local name = a.author_name or a.name
+      if name and name ~= "" then
+        table.insert(artists, {
+          id = tostring(a.author_id or a.id or name),
+          name = tostring(name)
+        })
+      end
+    end
+  elseif raw.author_name and raw.author_name ~= "" then
+    table.insert(artists, {
+      id = tostring(raw.author_id or raw.author_name),
+      name = tostring(raw.author_name)
+    })
+  end
+
+  local year = nil
+  if raw.publish_date and type(raw.publish_date) == "string" then
+    local y = raw.publish_date:match("^(%d%d%d%d)")
+    if y then year = tonumber(y) end
+  end
+
+  return {
+    id = tostring(raw.album_id or raw.id or ""),
+    title = tostring(raw.album_name or raw.name or "专辑"),
+    artists = artists,
+    coverUrl = (cover and cover ~= "") and cover or nil,
+    year = year,
+    songCount = tonumber(raw.song_count or 0),
+    description = tostring(raw.intro or "")
+  }
+end
+
 -- 歌单实体转换
 function models.playlist(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
-  local cover = raw.imgurl or raw.pic or raw.cover or ""
+  local cover = raw.imgurl or raw.pic or raw.cover or raw.special_cover or ""
   if cover and cover ~= "" then
     cover = cover:gsub("^http://", "https://")
     cover = cover:gsub("{size}", "400")
@@ -86,8 +160,8 @@ function models.playlist(raw)
 
   return {
     id = tostring(raw.specialid or raw.id or raw.listid or ""),
-    name = raw.specialname or raw.name or raw.title or "歌单",
-    description = raw.intro or raw.description or "",
+    name = tostring(raw.specialname or raw.name or raw.title or "歌单"),
+    description = tostring(raw.intro or raw.description or ""),
     coverUrl = (cover and cover ~= "") and cover or nil,
     songCount = tonumber(raw.songcount or raw.total or raw.count or 0),
     owner = raw.nickname or raw.username or raw.user_name,

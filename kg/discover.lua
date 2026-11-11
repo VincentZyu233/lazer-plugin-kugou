@@ -7,6 +7,7 @@ local discover = {}
 -- 首页推荐流 (homeFeed)
 function discover.homeFeed()
   local session = transport.getSession()
+  local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
 
   -- 1. 获取推荐歌单
   local plRes, err = transport.request({
@@ -17,12 +18,21 @@ function discover.homeFeed()
       platform = "android",
       module_id = 1,
       page = 1,
-      pagesize = 12,
+      pagesize = 20,
+      userid = userId,
       special_recommend = {
-        withrecommend = 1,
+        withtag = 1,
+        withsong = 0,
         sort = 1,
-        ugc = 1
-      }
+        ugc = 1,
+        is_selected = 0,
+        withrecommend = 1,
+        area_code = 1,
+        categoryid = 0
+      },
+      req_multi = 1,
+      retrun_min = 5,
+      return_special_falg = 1
     }
   })
 
@@ -30,28 +40,40 @@ function discover.homeFeed()
   if plRes and plRes.data and plRes.data.special_list then
     for _, item in ipairs(plRes.data.special_list) do
       local p = models.playlist(item)
-      if p then table.insert(playlists, p) end
+      if p and p.id and p.id ~= "" then
+        table.insert(playlists, p)
+      end
     end
   end
 
   -- 2. 获取每日推荐歌曲
   local songRes, sErr = transport.request({
+    method = "POST",
     path = "/everyday_song_recommend",
-    router = "everydayrec.service.kugou.com"
+    router = "everydayrec.service.kugou.com",
+    body = {
+      platform = "android",
+      userid = userId
+    }
   })
 
   local dailySongs = {}
   if songRes and songRes.data and songRes.data.song_list then
     for _, item in ipairs(songRes.data.song_list) do
       local s = models.song(item)
-      if s then table.insert(dailySongs, s) end
+      if s and s.id and s.id ~= "" then
+        table.insert(dailySongs, s)
+      end
     end
   end
 
   return {
-    featured = playlists,
     daily = dailySongs,
-    playlists = playlists
+    quick = dailySongs,
+    recommended = playlists,
+    playlists = playlists,
+    albums = {},
+    featuredSongs = {}
   }
 end
 

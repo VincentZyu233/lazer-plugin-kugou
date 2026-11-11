@@ -57,6 +57,12 @@ function plugin.call(operation, args)
     return catalog.playlist(args)
   elseif operation == "playlistSongs" then
     return catalog.playlistSongs(args)
+  elseif operation == "artist" then
+    return catalog.artist(args)
+  elseif operation == "artistSongs" then
+    return catalog.artistSongs(args)
+  elseif operation == "artistAlbums" then
+    return catalog.artistAlbums(args)
   end
 
   -- 4. 推荐与个人收藏

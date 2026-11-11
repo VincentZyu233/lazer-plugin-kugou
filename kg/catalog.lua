@@ -231,4 +231,106 @@ function catalog.playlistSongs(args)
   return songs
 end
 
+-- 获取歌手详情
+function catalog.artist(args)
+  local authorId = tostring(args and args.id or "")
+  if authorId == "" then return nil end
+
+  local res, err = transport.request({
+    method = "POST",
+    path = "/kmr/v3/author",
+    body = {
+      author_id = authorId
+    },
+    router = "openapi.kugou.com",
+    headers = {
+      ["kg-tid"] = "36"
+    }
+  })
+
+  if res and res.status == 1 and res.data then
+    return models.artist(res.data)
+  end
+  return nil
+end
+
+-- 获取歌手热门歌曲
+function catalog.artistSongs(args)
+  local authorId = tostring(args and args.id or "")
+  if authorId == "" then return {} end
+
+  local limit = tonumber(args and args.limit or 100)
+  local offset = tonumber(args and args.offset or 0)
+  local page = math.floor(offset / limit) + 1
+
+  local res, err = transport.request({
+    method = "POST",
+    path = "/kmr/v1/audio_group/author",
+    body = {
+      author_id = authorId,
+      pagesize = limit,
+      page = page,
+      sort = 1, -- 1=最热, 2=最新
+      area_code = "all"
+    },
+    router = "openapi.kugou.com",
+    headers = {
+      ["kg-tid"] = "220"
+    }
+  })
+
+  local songs = {}
+  local list = res and res.data
+  if list and type(list) == "table" then
+    for _, item in ipairs(list) do
+      local s = models.song(item)
+      if s and s.id and s.id ~= "" then
+        table.insert(songs, s)
+      end
+    end
+  end
+
+  return songs
+end
+
+-- 获取歌手专辑列表
+function catalog.artistAlbums(args)
+  local authorId = tostring(args and args.id or "")
+  if authorId == "" then return {} end
+
+  local limit = tonumber(args and args.limit or 30)
+  local offset = tonumber(args and args.offset or 0)
+  local page = math.floor(offset / limit) + 1
+
+  local res, err = transport.request({
+    method = "POST",
+    path = "/kmr/v1/author/albums",
+    body = {
+      author_id = authorId,
+      pagesize = limit,
+      page = page,
+      sort = 3, -- 3=最热, 1=最新
+      category = 1,
+      area_code = "all"
+    },
+    router = "openapi.kugou.com",
+    headers = {
+      ["kg-tid"] = "36"
+    }
+  })
+
+  local albums = {}
+  local list = res and res.data
+  if list and type(list) == "table" then
+    for _, item in ipairs(list) do
+      local a = models.album(item)
+      if a and a.id and a.id ~= "" then
+        table.insert(albums, a)
+      end
+    end
+  end
+
+  return albums
+end
+
 return catalog
