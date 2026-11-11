@@ -110,7 +110,9 @@ function transport.request(options)
   local headers = {
     ["User-Agent"] = config.userAgent,
     ["dfid"] = session.dfid or config.defaultDfid,
-    ["mid"] = session.mid or config.defaultMid
+    ["mid"] = session.mid or config.defaultMid,
+    ["clienttime"] = tostring(clientTimeSec),
+    ["kg-rc"] = "1"
   }
   if options.router then
     headers["x-router"] = options.router

@@ -29,7 +29,7 @@ function catalog.search(args)
   if rawList and type(rawList) == "table" then
     for _, item in ipairs(rawList) do
       local song = models.song(item)
-      if song and song.id ~= "" then
+      if song and song.id and song.id ~= "" then
         table.insert(songList, song)
       end
     end
