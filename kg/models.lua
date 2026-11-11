@@ -86,19 +86,28 @@ end
 function models.artist(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
-  local avatar = raw.sizable_avatar or raw.avatar or raw.pic or raw.img or ""
+  local avatar = raw.sizable_avatar or raw.avatar or raw.Avatar or raw.pic or raw.img or ""
   if avatar and avatar ~= "" then
     avatar = avatar:gsub("^http://", "https://")
     avatar = avatar:gsub("{size}", "480")
   end
 
+  local desc = raw.intro or raw.Intro or ""
+  if (not desc or desc == "") and raw.long_intro and type(raw.long_intro) == "table" and #raw.long_intro > 0 then
+    local p = {}
+    for _, item in ipairs(raw.long_intro) do
+      if item and item.content then table.insert(p, item.content) end
+    end
+    desc = table.concat(p, "\n\n")
+  end
+
   return {
-    id = tostring(raw.author_id or raw.id or raw.singerid or ""),
-    name = tostring(raw.author_name or raw.name or raw.singername or "未知歌手"),
+    id = tostring(raw.author_id or raw.AuthorId or raw.id or raw.singerid or ""),
+    name = tostring(raw.author_name or raw.AuthorName or raw.name or raw.singername or "未知歌手"),
     coverUrl = (avatar and avatar ~= "") and avatar or nil,
-    description = tostring(raw.intro or ""),
-    albumCount = tonumber(raw.album_count or 0),
-    songCount = tonumber(raw.song_count or 0)
+    description = tostring(desc),
+    albumCount = tonumber(raw.album_count or raw.AlbumCount or 0),
+    songCount = tonumber(raw.song_count or raw.AudioCount or 0)
   }
 end
 
@@ -116,18 +125,19 @@ function models.album(raw)
   local authors = raw.authors or raw.Singers or raw.singers
   if authors and type(authors) == "table" and #authors > 0 then
     for _, a in ipairs(authors) do
-      local name = a.author_name or a.name
+      local name = a.author_name or a.name or a.AuthorName
       if name and name ~= "" then
         table.insert(artists, {
-          id = tostring(a.author_id or a.id or name),
+          id = tostring(a.author_id or a.AuthorId or a.id or name),
           name = tostring(name)
         })
       end
     end
-  elseif raw.author_name and raw.author_name ~= "" then
+  elseif (raw.author_name and raw.author_name ~= "") or (raw.AuthorName and raw.AuthorName ~= "") then
+    local aName = raw.author_name or raw.AuthorName
     table.insert(artists, {
-      id = tostring(raw.author_id or raw.author_name),
-      name = tostring(raw.author_name)
+      id = tostring(raw.author_id or raw.AuthorId or aName),
+      name = tostring(aName)
     })
   end
 
@@ -138,12 +148,12 @@ function models.album(raw)
   end
 
   return {
-    id = tostring(raw.album_id or raw.id or ""),
-    title = tostring(raw.album_name or raw.name or "专辑"),
+    id = tostring(raw.album_id or raw.AlbumID or raw.id or ""),
+    title = tostring(raw.album_name or raw.AlbumName or raw.name or "专辑"),
     artists = artists,
     coverUrl = (cover and cover ~= "") and cover or nil,
     year = year,
-    songCount = tonumber(raw.song_count or 0),
+    songCount = tonumber(raw.song_count or raw.AudioCount or 0),
     description = tostring(raw.intro or "")
   }
 end

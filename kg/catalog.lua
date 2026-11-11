@@ -231,62 +231,147 @@ function catalog.playlistSongs(args)
   return songs
 end
 
--- 获取歌手详情
-function catalog.artist(args)
-  local authorId = tostring(args and args.id or "")
-  if authorId == "" then return nil end
+-- 作者信息内存缓存表 (支持按照名字和 ID 双向查询)
+local authorCache = {}
 
+local function resolveAuthor(idOrName)
+  if not idOrName or idOrName == "" then return nil, nil end
+  local str = tostring(idOrName)
+
+  if authorCache[str] then
+    local cached = authorCache[str]
+    local cid = tostring(cached.AuthorId or cached.author_id or str)
+    return cid, cached
+  end
+
+  -- 如果已经是纯数字并且不为 0
+  if str:match("^%d+$") and str ~= "0" then
+    return str, nil
+  end
+
+  -- 否则使用 /v1/search/author 搜索歌手名字，获取真实 AuthorId 与基础元数据
   local res, err = transport.request({
-    method = "POST",
-    path = "/kmr/v3/author",
-    body = {
-      author_id = authorId
+    path = "/v1/search/author",
+    params = {
+      keyword = str,
+      page = "1",
+      pagesize = "5",
+      platform = "AndroidFilter",
+      iscorrection = "1"
     },
-    router = "openapi.kugou.com",
-    headers = {
-      ["kg-tid"] = "36"
-    }
+    router = "complexsearch.kugou.com"
   })
 
-  if res and res.status == 1 and res.data then
-    return models.artist(res.data)
+  if res and res.status == 1 and res.data and res.data.lists and #res.data.lists > 0 then
+    local match = res.data.lists[1]
+    local authorId = tostring(match.AuthorId or "")
+    if authorId ~= "" then
+      authorCache[str] = match
+      authorCache[authorId] = match
+      return authorId, match
+    end
   end
-  return nil
+
+  return str, nil
+end
+
+-- 获取歌手详情
+function catalog.artist(args)
+  local rawId = tostring(args and args.id or "")
+  if rawId == "" then return nil end
+
+  local authorId, cachedAuthor = resolveAuthor(rawId)
+
+  local detail = nil
+  if authorId and authorId:match("^%d+$") then
+    local res, err = transport.request({
+      method = "POST",
+      path = "/kmr/v3/author",
+      body = {
+        author_id = authorId
+      },
+      router = "openapi.kugou.com",
+      headers = {
+        ["kg-tid"] = "36"
+      }
+    })
+
+    if res and res.status == 1 and res.data then
+      detail = models.artist(res.data)
+    end
+  end
+
+  -- 兜底或数据融合：若获取详情失败或缺少头像，优先使用搜索拿到的歌手元数据
+  if not detail or not detail.coverUrl or detail.coverUrl == "" then
+    if cachedAuthor then
+      local fallback = models.artist(cachedAuthor)
+      if fallback then
+        if detail then
+          detail.coverUrl = fallback.coverUrl
+          if (detail.songCount or 0) == 0 then detail.songCount = fallback.songCount end
+          if (detail.albumCount or 0) == 0 then detail.albumCount = fallback.albumCount end
+        else
+          detail = fallback
+        end
+      end
+    end
+  end
+
+  return detail
 end
 
 -- 获取歌手热门歌曲
 function catalog.artistSongs(args)
-  local authorId = tostring(args and args.id or "")
-  if authorId == "" then return {} end
+  local rawId = tostring(args and args.id or "")
+  if rawId == "" then return {} end
 
+  local authorId, cachedAuthor = resolveAuthor(rawId)
   local limit = tonumber(args and args.limit or 100)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
-  local res, err = transport.request({
-    method = "POST",
-    path = "/kmr/v1/audio_group/author",
-    body = {
-      author_id = authorId,
-      pagesize = limit,
-      page = page,
-      sort = 1, -- 1=最热, 2=最新
-      area_code = "all"
-    },
-    router = "openapi.kugou.com",
-    headers = {
-      ["kg-tid"] = "220"
-    }
-  })
-
   local songs = {}
-  local list = res and res.data
-  if list and type(list) == "table" then
-    for _, item in ipairs(list) do
-      local s = models.song(item)
-      if s and s.id and s.id ~= "" then
-        table.insert(songs, s)
+
+  -- 1. 优先使用纯数字 authorId 请求 OpenAPI
+  if authorId and authorId:match("^%d+$") then
+    local res, err = transport.request({
+      method = "POST",
+      path = "/kmr/v1/audio_group/author",
+      body = {
+        author_id = authorId,
+        pagesize = limit,
+        page = page,
+        sort = 1, -- 1=最热, 2=最新
+        area_code = "all"
+      },
+      router = "openapi.kugou.com",
+      headers = {
+        ["kg-tid"] = "220"
+      }
+    })
+
+    local list = res and res.data
+    if list and type(list) == "table" then
+      for _, item in ipairs(list) do
+        local s = models.song(item)
+        if s and s.id and s.id ~= "" then
+          -- 如果歌曲自带的歌手列表缺乏有效 ID，补齐此歌手的数字 ID
+          if authorId and (#s.artists == 0 or s.artists[1].id == s.artists[1].name) then
+            local aName = (s.artists[1] and s.artists[1].name ~= "") and s.artists[1].name or (cachedAuthor and cachedAuthor.AuthorName or rawId)
+            s.artists = { { id = authorId, name = aName } }
+          end
+          table.insert(songs, s)
+        end
       end
+    end
+  end
+
+  -- 2. 兜底保障：若 OpenAPI 未返回歌曲或 ID 解析受阻，直接通过综合搜索拉取该歌手的歌曲
+  if #songs == 0 then
+    local queryName = (cachedAuthor and cachedAuthor.AuthorName) or rawId
+    local sRes = catalog.search({ query = queryName, limit = limit, offset = offset })
+    if sRes and sRes.songs and #sRes.songs > 0 then
+      songs = sRes.songs
     end
   end
 
@@ -295,12 +380,17 @@ end
 
 -- 获取歌手专辑列表
 function catalog.artistAlbums(args)
-  local authorId = tostring(args and args.id or "")
-  if authorId == "" then return {} end
+  local rawId = tostring(args and args.id or "")
+  if rawId == "" then return {} end
 
+  local authorId, cachedAuthor = resolveAuthor(rawId)
   local limit = tonumber(args and args.limit or 30)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
+
+  if not authorId or not authorId:match("^%d+$") then
+    return {}
+  end
 
   local res, err = transport.request({
     method = "POST",
