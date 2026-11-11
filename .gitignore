@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+*.zip
+*.tar.gz
+
+# Environment & temporary files
+.env
+.env.*
+*.log
+*.tmp
+temp/
+.DS_Store
+Thumbs.db
