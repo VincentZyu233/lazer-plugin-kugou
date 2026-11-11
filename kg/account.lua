@@ -42,7 +42,7 @@ function account.qrKey()
 
   if res and res.status == 1 and res.data and res.data.qrcode then
     local key = tostring(res.data.qrcode)
-    local url = res.data.url or ("https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=3116&qrcode=" .. host.url_encode(key))
+    local url = "https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=3116&qrcode=" .. host.url_encode(key)
     qrUrls[key] = url
     return key
   end
@@ -59,10 +59,10 @@ function account.qrUrl(args)
 end
 
 -- 轮询二维码扫码状态
--- Lazer 状态契约: 0=等待扫码, 1=已扫码待确认, 2=成功, -1=过期/失效
+-- Lazer 状态契约: 801=等待扫码, 802=已扫码待确认, 803=成功, 800=过期/失效
 function account.qrCheck(args)
   local key = tostring(args and args.key or "")
-  if key == "" then return -1 end
+  if key == "" then return 800 end
 
   local res, err = transport.request({
     host = config.loginHost,
@@ -76,13 +76,13 @@ function account.qrCheck(args)
     signType = "web"
   })
 
-  if not res then return 0 end
+  if not res then return 801 end
 
   -- 酷狗接口规范：
-  -- status == 1 且 data.status == 1 表示登录成功
-  -- data.status == 0 或 4 表示等待扫码
-  -- data.status == 2 表示已扫码待确认
-  -- status == 0 且 errcode == 20002 表示二维码过期
+  -- status == 1 且 data.status == 1 表示登录成功 -> 803
+  -- data.status == 2 表示已扫码待确认 -> 802
+  -- data.status == 0 或 4 表示等待扫码 -> 801
+  -- status == 0 或 errcode == 20002 表示二维码过期 -> 800
   if res.status == 1 and res.data then
     local qrStatus = tonumber(res.data.status)
     if qrStatus == 1 and res.data.userid then
@@ -94,17 +94,17 @@ function account.qrCheck(args)
       s.avatar = tostring(res.data.pic or "")
       s.vipType = tonumber(res.data.vip_type or 0)
       transport.setSession(s)
-      return 2
+      return 803
     elseif qrStatus == 2 then
-      return 1
+      return 802
     else
-      return 0
+      return 801
     end
   elseif res.errcode == 20002 or res.status == 0 then
-    return -1
+    return 800
   end
 
-  return 0
+  return 801
 end
 
 -- 发送手机短信验证码
@@ -116,9 +116,10 @@ function account.sendCaptcha(args)
 
   local res, err = transport.request({
     method = "POST",
+    host = config.loginHost,
     path = "/v7/send_mobile_code",
-    router = "login.user.kugou.com",
     body = {
+      businessid = 5,
       mobile = phone,
       plat = 3
     }
@@ -130,13 +131,13 @@ function account.sendCaptcha(args)
 
   return {
     error = {
-      code = res and res.errcode or 500,
+      code = res and res.error_code or 500,
       message = res and res.error or "发送验证码失败"
     }
   }
 end
 
--- 手机验证码登录 (基础实现)
+-- 手机验证码登录
 function account.loginCaptcha(args)
   local phone = tostring(args and args.phone or "")
   local captcha = tostring(args and args.captcha or "")
@@ -146,8 +147,8 @@ function account.loginCaptcha(args)
 
   local res, err = transport.request({
     method = "POST",
+    host = config.loginHost,
     path = "/v7/login_by_verifycode",
-    router = "login.user.kugou.com",
     body = {
       mobile = phone,
       code = captcha,

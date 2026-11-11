@@ -81,6 +81,7 @@ function transport.request(options)
     if not mergedParams["clientver"] then mergedParams["clientver"] = options.official and config.officialClientVer or config.clientVer end
     if not mergedParams["dfid"] then mergedParams["dfid"] = session.dfid or config.defaultDfid end
     if not mergedParams["mid"] then mergedParams["mid"] = session.mid or config.defaultMid end
+    if not mergedParams["uuid"] then mergedParams["uuid"] = session.uuid or config.defaultUuid end
     if not mergedParams["clienttime"] then mergedParams["clienttime"] = tostring(clientTimeSec) end
     if not mergedParams["userid"] then mergedParams["userid"] = session.userId or "0" end
     if session.token and session.token ~= "" and not mergedParams["token"] then
