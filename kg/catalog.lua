@@ -333,4 +333,49 @@ function catalog.artistAlbums(args)
   return albums
 end
 
+-- 获取电台歌曲流 (私人漫游、心动模式、歌手电台)
+function catalog.radio(args)
+  local kind = tostring(args and args.kind or "personal"):lower()
+  local limit = tonumber(args and args.limit or 30)
+
+  -- 1. 歌手电台 (artist radio)
+  if kind == "artist" and args and args.seed and tostring(args.seed) ~= "" then
+    return catalog.artistSongs({ id = tostring(args.seed), limit = limit })
+  end
+
+  -- 2. 歌单心动/相似歌曲
+  if args and args.playlist and tostring(args.playlist) ~= "" then
+    local pSongs = catalog.playlistSongs({ id = tostring(args.playlist), limit = limit })
+    if pSongs and #pSongs > 0 then
+      return pSongs
+    end
+  end
+
+  -- 3. 私人漫游 (personal) 或 心动模式 (heart): 从酷狗每日个性化推荐拉取歌曲流
+  local session = transport.getSession()
+  local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
+
+  local songRes, err = transport.request({
+    method = "POST",
+    path = "/everyday_song_recommend",
+    router = "everydayrec.service.kugou.com",
+    body = {
+      platform = "android",
+      userid = userId
+    }
+  })
+
+  local songs = {}
+  if songRes and songRes.data and songRes.data.song_list then
+    for _, item in ipairs(songRes.data.song_list) do
+      local s = models.song(item)
+      if s and s.id and s.id ~= "" then
+        table.insert(songs, s)
+      end
+    end
+  end
+
+  return songs
+end
+
 return catalog

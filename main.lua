@@ -20,7 +20,9 @@ function plugin.call(operation, args)
             "lyrics",
             "playlists",
             "favorites",
-            "homeFeed"
+            "homeFeed",
+            "radio",
+            "recommendations"
           },
           loginHint = "使用酷狗音乐 App 扫码登录或手机验证码登录",
           cookieHint = "支持扫码与验证码授权"
@@ -63,6 +65,8 @@ function plugin.call(operation, args)
     return catalog.artistSongs(args)
   elseif operation == "artistAlbums" then
     return catalog.artistAlbums(args)
+  elseif operation == "radio" then
+    return catalog.radio(args)
   end
 
   -- 4. 推荐与个人收藏

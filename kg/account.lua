@@ -9,14 +9,57 @@ local qrUrls = {}
 function account.session()
   local s = transport.getSession()
   if s and s.userId and s.userId ~= "0" and s.token and s.token ~= "" then
+    -- 尝试从酷狗云端拉取最新的用户资料进行静默刷新
+    local res, err = transport.request({
+      method = "POST",
+      path = "/v7/get_all_list",
+      params = {
+        plat = "1",
+        userid = s.userId,
+        token = s.token
+      },
+      body = {
+        userid = s.userId,
+        token = s.token,
+        total_ver = 979,
+        type = 2,
+        page = 1,
+        pagesize = 1
+      },
+      router = "cloudlist.service.kugou.com"
+    })
+
+    if res and res.status == 1 and res.data and res.data.info and #res.data.info > 0 then
+      local firstItem = res.data.info[1]
+      local freshPic = firstItem.create_user_pic
+      local freshNick = firstItem.list_create_username
+      local updated = false
+      if freshPic and freshPic ~= "" and freshPic ~= s.avatar then
+        s.avatar = freshPic
+        updated = true
+      end
+      if freshNick and freshNick ~= "" and freshNick ~= s.userName and freshNick ~= s.userId then
+        s.userName = freshNick
+        updated = true
+      end
+      if updated then
+        transport.setSession(s)
+      end
+    end
+
     local nick = s.userName
-    if not nick or nick == "" then
+    if not nick or nick == "" or nick == s.userId then
       nick = "酷狗用户" .. tostring(s.userId)
     end
+    local avatarUrl = (s.avatar and s.avatar ~= "") and s.avatar or nil
+    if avatarUrl then
+      avatarUrl = avatarUrl:gsub("^http://", "https://")
+    end
+
     return {
       id = tostring(s.userId),
       name = nick,
-      avatarUrl = (s.avatar and s.avatar ~= "") and s.avatar or nil,
+      avatarUrl = avatarUrl,
       membership = s.vipType == 1 and "VIP" or nil
     }
   end

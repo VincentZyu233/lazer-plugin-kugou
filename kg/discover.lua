@@ -115,7 +115,7 @@ end
 function discover.favorites(args)
   -- 酷狗云端红心收藏列表，未登录返回空
   local session = transport.getSession()
-  if not session or not session.userId or session.userId == "0" then
+  if not session or not session.userId or session.userId == "0" or not session.token or session.token == "" then
     return {}
   end
 
@@ -124,20 +124,33 @@ function discover.favorites(args)
   local page = math.floor(offset / limit) + 1
 
   local res, err = transport.request({
-    path = "/kmr/v1/user/favorite/songs",
+    method = "POST",
+    path = "/v4/get_list_all_file",
+    router = "cloudlist.service.kugou.com",
     params = {
+      plat = "1",
       userid = session.userId,
-      page = tostring(page),
-      pagesize = tostring(limit)
+      token = session.token
     },
-    router = "gateway.kugou.com"
+    body = {
+      listid = 1, -- 默认收藏
+      userid = session.userId,
+      token = session.token,
+      type = 0,
+      page = page,
+      pagesize = limit,
+      area_code = 1,
+      allplatform = 1,
+      show_cover = 1
+    }
   })
 
   local songs = {}
-  if res and res.data and res.data.info then
-    for _, item in ipairs(res.data.info) do
+  local list = res and res.data and res.data.info
+  if list and type(list) == "table" then
+    for _, item in ipairs(list) do
       local s = models.song(item)
-      if s then
+      if s and s.id and s.id ~= "" then
         s.starred = true
         table.insert(songs, s)
       end
