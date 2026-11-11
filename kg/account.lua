@@ -9,10 +9,14 @@ local qrUrls = {}
 function account.session()
   local s = transport.getSession()
   if s and s.userId and s.userId ~= "0" and s.token and s.token ~= "" then
+    local nick = s.userName
+    if not nick or nick == "" then
+      nick = "酷狗用户" .. tostring(s.userId)
+    end
     return {
       id = tostring(s.userId),
-      name = s.userName ~= "" and s.userName or ("酷狗用户" .. tostring(s.userId)),
-      avatarUrl = s.avatar ~= "" and s.avatar or nil,
+      name = nick,
+      avatarUrl = (s.avatar and s.avatar ~= "") and s.avatar or nil,
       membership = s.vipType == 1 and "VIP" or nil
     }
   end
@@ -59,6 +63,7 @@ function account.qrUrl(args)
 end
 
 -- 轮询二维码扫码状态
+-- 酷狗 QrLoginStatus: 0=过期, 1=等待扫码, 2=已扫待确认, 4=成功
 -- Lazer 状态契约: 801=等待扫码, 802=已扫码待确认, 803=成功, 800=过期/失效
 function account.qrCheck(args)
   local key = tostring(args and args.key or "")
@@ -78,26 +83,26 @@ function account.qrCheck(args)
 
   if not res then return 801 end
 
-  -- 酷狗接口规范：
-  -- status == 1 且 data.status == 1 表示登录成功 -> 803
-  -- data.status == 2 表示已扫码待确认 -> 802
-  -- data.status == 0 或 4 表示等待扫码 -> 801
-  -- status == 0 或 errcode == 20002 表示二维码过期 -> 800
   if res.status == 1 and res.data then
     local qrStatus = tonumber(res.data.status)
-    if qrStatus == 1 and res.data.userid then
-      -- 登录成功，保存 Session
+    -- 状态为 4，或者已有 token 即代表登录成功
+    if qrStatus == 4 or (res.data.token and res.data.token ~= "") then
       local s = transport.getSession()
       s.userId = tostring(res.data.userid or res.data.id or "0")
       s.token = tostring(res.data.token or "")
-      s.userName = tostring(res.data.nickname or res.data.username or "")
+      s.userName = tostring(res.data.nickname or res.data.username or ("酷狗用户" .. s.userId))
       s.avatar = tostring(res.data.pic or "")
       s.vipType = tonumber(res.data.vip_type or 0)
       transport.setSession(s)
       return 803
     elseif qrStatus == 2 then
+      -- 手机已扫码，等待确认
       return 802
+    elseif qrStatus == 0 then
+      -- 已过期
+      return 800
     else
+      -- 1 或其他：等待扫码
       return 801
     end
   elseif res.errcode == 20002 or res.status == 0 then
@@ -160,7 +165,7 @@ function account.loginCaptcha(args)
     local s = transport.getSession()
     s.userId = tostring(res.data.userid or "0")
     s.token = tostring(res.data.token or "")
-    s.userName = tostring(res.data.nickname or "")
+    s.userName = tostring(res.data.nickname or ("酷狗用户" .. s.userId))
     s.avatar = tostring(res.data.pic or "")
     transport.setSession(s)
     return account.session()
