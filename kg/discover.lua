@@ -168,55 +168,55 @@ function discover.homeFeed()
   }
 end
 
--- 发现页歌单列表
+-- 用户个人歌单列表 (playlists) - 对应酷狗云端自建与收藏歌单 (/v7/get_all_list)
 function discover.playlists(args)
   local session = transport.getSession()
-  local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
-  local limit = tonumber(args and args.limit or 30)
+  if not session or not session.userId or session.userId == "0" or not session.token or session.token == "" then
+    transport.debugLog("discover.playlists: no session, return empty")
+    return {}
+  end
+
+  local limit = tonumber(args and args.limit or 50)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
-  local nowSec = math.floor(host.now() / 1000)
-  local key = crypto.calc_login_key(tostring(nowSec))
+  transport.debugLog("discover.playlists start page=" .. tostring(page) .. " limit=" .. tostring(limit))
+
   local res, err = transport.request({
     method = "POST",
-    path = "/v2/special_recommend",
-    router = "specialrec.service.kugou.com",
+    path = "/v7/get_all_list",
+    params = {
+      plat = "1",
+      userid = tostring(session.userId),
+      token = session.token
+    },
     body = {
-      appid = tonumber(config.appId) or 3116,
-      mid = (session and session.mid) or config.defaultMid,
-      clientver = tonumber(config.clientVer) or 11440,
-      platform = "android",
-      clienttime = nowSec,
-      userid = tostring(userId),
-      module_id = 1,
+      userid = tostring(session.userId),
+      token = session.token,
+      total_ver = 979,
+      type = 2,
       page = page,
-      pagesize = limit,
-      key = key,
-      special_recommend = {
-        withtag = 1,
-        withsong = 0,
-        sort = 1,
-        ugc = 1,
-        is_selected = 0,
-        withrecommend = 1,
-        area_code = 1,
-        categoryid = 0
-      },
-      req_multi = 1,
-      retrun_min = 5,
-      return_special_falg = 1
-    }
+      pagesize = limit
+    },
+    router = "cloudlist.service.kugou.com"
   })
 
   local list = {}
-  if res and res.data and res.data.special_list then
-    for _, item in ipairs(res.data.special_list) do
-      local p = models.playlist(item)
-      if p then table.insert(list, p) end
+  local info = res and res.data and res.data.info
+  if info and type(info) == "table" then
+    for _, item in ipairs(info) do
+      -- 剔除“我喜欢” (is_def == 2)，因为宿主通过 favorites 单独管理并在置顶以特权显示
+      local isDef = tonumber(item.is_def or 0)
+      if isDef ~= 2 then
+        local p = models.playlist(item, session)
+        if p and p.id and p.id ~= "" then
+          table.insert(list, p)
+        end
+      end
     end
   end
 
+  transport.debugLog("discover.playlists done count=" .. tostring(#list) .. " err=" .. tostring(err))
   return list
 end
 

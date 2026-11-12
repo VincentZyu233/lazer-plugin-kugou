@@ -183,8 +183,8 @@ function models.album(raw)
   }
 end
 
--- 歌单实体转换
-function models.playlist(raw)
+-- 歌单实体转换 (通用支持公共特辑歌单与用户个人歌单)
+function models.playlist(raw, currentSession)
   if not raw or type(raw) ~= "table" then return nil end
 
   local cover = raw.imgurl or raw.pic or raw.cover or raw.special_cover or raw.img or ""
@@ -194,14 +194,23 @@ function models.playlist(raw)
     cover = cover:gsub("/150/", "/400/")
   end
 
+  local owner = raw.list_create_username or raw.nickname or raw.username or raw.user_name
+  local isMine = raw.is_mine == 1 or raw.type == 0
+  if currentSession and currentSession.userName and currentSession.userName ~= "" and owner == currentSession.userName then
+    isMine = true
+  end
+  local writable = raw.writable == true or isMine
+
   return {
-    id = tostring(raw.specialid or raw.id or raw.listid or ""),
+    id = tostring(raw.listid or raw.specialid or raw.id or ""),
     name = tostring(raw.specialname or raw.name or raw.title or "歌单"),
     description = tostring(raw.intro or raw.description or ""),
     coverUrl = (cover and cover ~= "") and cover or nil,
-    songCount = tonumber(raw.song_count or raw.songcount or raw.total or raw.count or 0),
-    owner = raw.nickname or raw.username or raw.user_name,
-    isFavorites = raw.isFavorites == true
+    songCount = tonumber(raw.count or raw.m_count or raw.song_count or raw.songcount or raw.total or 0),
+    owner = owner and tostring(owner) or nil,
+    writable = writable,
+    isPublic = raw.is_pri ~= 1,
+    isFavorites = raw.isFavorites == true or tonumber(raw.is_def or 0) == 2
   }
 end
 

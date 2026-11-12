@@ -259,7 +259,7 @@ function catalog.lyrics(args)
   return {}
 end
 
--- 获取歌单详情与歌曲
+-- 获取歌单详情 (支持私人自建歌单与公共特辑歌单)
 function catalog.playlist(args)
   local specialId = tostring(args and args.id or "")
   if specialId == "" then return nil end
@@ -273,6 +273,39 @@ function catalog.playlist(args)
     }
   end
 
+  local session = transport.getSession()
+
+  -- 1. 优先从用户个人歌单中比对查找
+  if session and session.userId and session.userId ~= "0" and session.token and session.token ~= "" then
+    local res, err = transport.request({
+      method = "POST",
+      path = "/v7/get_all_list",
+      params = {
+        plat = "1",
+        userid = tostring(session.userId),
+        token = session.token
+      },
+      body = {
+        userid = tostring(session.userId),
+        token = session.token,
+        total_ver = 979,
+        type = 2,
+        page = 1,
+        pagesize = 100
+      },
+      router = "cloudlist.service.kugou.com"
+    })
+    local info = res and res.data and res.data.info
+    if info and type(info) == "table" then
+      for _, item in ipairs(info) do
+        if tostring(item.listid) == specialId then
+          return models.playlist(item, session)
+        end
+      end
+    end
+  end
+
+  -- 2. 公共歌单详情
   local res, err = transport.request({
     path = "/api/v5/special/info",
     params = {
@@ -287,6 +320,7 @@ function catalog.playlist(args)
   return nil
 end
 
+-- 获取歌单内部歌曲 (支持用户私人自建歌单与公共特辑歌单)
 function catalog.playlistSongs(args)
   local specialId = tostring(args and args.id or "")
   if specialId == "__lazer_favorites__" or specialId:find("favorites") then
@@ -297,6 +331,76 @@ function catalog.playlistSongs(args)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
+  transport.debugLog("catalog.playlistSongs start id=" .. specialId .. " page=" .. tostring(page) .. " limit=" .. tostring(limit))
+
+  local session = transport.getSession()
+  local songs = {}
+
+  -- 1. 优先尝试作为当前用户的私人歌单拉取 (/v4/get_list_all_file)
+  if session and session.userId and session.userId ~= "0" and session.token and session.token ~= "" then
+    local listIdNum = tonumber(specialId)
+    if listIdNum and listIdNum > 0 then
+      local res, err = transport.request({
+        method = "POST",
+        path = "/v4/get_list_all_file",
+        router = "cloudlist.service.kugou.com",
+        body = {
+          listid = listIdNum,
+          userid = tostring(session.userId),
+          token = session.token,
+          type = 0,
+          page = page,
+          pagesize = limit,
+          area_code = 1,
+          allplatform = 1,
+          show_cover = 1,
+          show_relate_goods = 0
+        }
+      })
+
+      local info = res and res.data and res.data.info
+      if info and type(info) == "table" and #info > 0 then
+        for _, item in ipairs(info) do
+          local okSong, s = pcall(models.song, item)
+          if okSong and s and s.id and s.id ~= "" then
+            table.insert(songs, s)
+          end
+        end
+        transport.debugLog("catalog.playlistSongs hit private list songs=" .. tostring(#songs))
+        return songs
+      end
+    end
+  end
+
+  -- 2. 若不是私人歌单或返回空，尝试作为公共特辑歌单拉取 (/pubsongs/v2/get_other_list_file_nofilt 与 /api/v5/special/song)
+  local pubRes, pubErr = transport.request({
+    path = "/pubsongs/v2/get_other_list_file_nofilt",
+    params = {
+      area_code = "1",
+      begin_idx = tostring(offset),
+      plat = "1",
+      type = "1",
+      mode = "1",
+      personal_switch = "1",
+      pagesize = tostring(limit),
+      global_collection_id = specialId
+    },
+    router = "pubsongs.kugou.com"
+  })
+
+  local pubInfo = pubRes and pubRes.data and (pubRes.data.info or pubRes.data.song_list)
+  if pubInfo and type(pubInfo) == "table" and #pubInfo > 0 then
+    for _, item in ipairs(pubInfo) do
+      local okSong, s = pcall(models.song, item)
+      if okSong and s and s.id and s.id ~= "" then
+        table.insert(songs, s)
+      end
+    end
+    transport.debugLog("catalog.playlistSongs hit pubsongs count=" .. tostring(#songs))
+    return songs
+  end
+
+  -- 3. 兜底旧版公共特辑接口 (/api/v5/special/song)
   local res, err = transport.request({
     path = "/api/v5/special/song",
     params = {
@@ -307,14 +411,16 @@ function catalog.playlistSongs(args)
     router = "mobileservice.kugou.com"
   })
 
-  local songs = {}
   if res and res.data and res.data.info then
     for _, item in ipairs(res.data.info) do
-      local s = models.song(item)
-      if s then table.insert(songs, s) end
+      local okSong, s = pcall(models.song, item)
+      if okSong and s and s.id and s.id ~= "" then
+        table.insert(songs, s)
+      end
     end
   end
 
+  transport.debugLog("catalog.playlistSongs done fallback count=" .. tostring(#songs))
   return songs
 end
 
