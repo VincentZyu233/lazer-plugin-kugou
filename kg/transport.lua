@@ -135,7 +135,8 @@ function transport.request(options)
 
   local resp = host.http(reqSpec)
   if not resp or not resp.body or resp.status >= 500 then
-    return nil, "HTTP Error: " .. tostring(resp and resp.status)
+    local errDetail = "HTTP Error: " .. tostring(resp and resp.status) .. ", body: " .. tostring(resp and resp.body)
+    return nil, errDetail
   end
 
   local ok, parsed = pcall(function() return host.json_decode(resp.body) end)
@@ -143,7 +144,7 @@ function transport.request(options)
     return parsed
   end
 
-  return nil, "Invalid JSON payload"
+  return nil, "Invalid JSON payload: " .. tostring(resp.body)
 end
 
 return transport

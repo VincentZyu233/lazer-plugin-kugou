@@ -234,18 +234,36 @@ end
 -- 作者信息内存缓存表 (支持按照名字和 ID 双向查询)
 local authorCache = {}
 
+local function debugLog(msg)
+  local logs = host.storage_get("debug_logs") or "[]"
+  local ok, arr = pcall(function() return host.json_decode(logs) end)
+  if not ok or type(arr) ~= "table" then arr = {} end
+  table.insert(arr, { time = host.now(), msg = tostring(msg) })
+  if #arr > 30 then table.remove(arr, 1) end
+  host.storage_set("debug_logs", host.json_encode(arr))
+end
+
+local function isNumericId(val)
+  if not val or val == "" then return false end
+  local n = tonumber(tostring(val))
+  return n ~= nil and n > 0
+end
+
 local function resolveAuthor(idOrName)
   if not idOrName or idOrName == "" then return nil, nil end
   local str = tostring(idOrName)
+  debugLog("resolveAuthor start: " .. str)
 
   if authorCache[str] then
     local cached = authorCache[str]
     local cid = tostring(cached.AuthorId or cached.author_id or str)
+    debugLog("resolveAuthor hit cache: " .. cid)
     return cid, cached
   end
 
   -- 如果已经是纯数字并且不为 0
-  if str:match("^%d+$") and str ~= "0" then
+  if isNumericId(str) then
+    debugLog("resolveAuthor is numeric: " .. str)
     return str, nil
   end
 
@@ -262,12 +280,15 @@ local function resolveAuthor(idOrName)
     router = "complexsearch.kugou.com"
   })
 
+  debugLog("resolveAuthor search result: " .. tostring(res and res.status) .. " err: " .. tostring(err))
+
   if res and res.status == 1 and res.data and res.data.lists and #res.data.lists > 0 then
     local match = res.data.lists[1]
     local authorId = tostring(match.AuthorId or "")
     if authorId ~= "" then
       authorCache[str] = match
       authorCache[authorId] = match
+      debugLog("resolveAuthor matched: " .. authorId .. " name: " .. tostring(match.AuthorName))
       return authorId, match
     end
   end
@@ -278,17 +299,19 @@ end
 -- 获取歌手详情
 function catalog.artist(args)
   local rawId = tostring(args and args.id or "")
+  debugLog("catalog.artist called with rawId: " .. rawId)
   if rawId == "" then return nil end
 
   local authorId, cachedAuthor = resolveAuthor(rawId)
+  debugLog("catalog.artist resolved to authorId: " .. tostring(authorId))
 
   local detail = nil
-  if authorId and authorId:match("^%d+$") then
+  if isNumericId(authorId) then
     local res, err = transport.request({
       method = "POST",
       path = "/kmr/v3/author",
       body = {
-        author_id = authorId
+        author_id = tostring(authorId)
       },
       router = "openapi.kugou.com",
       headers = {
@@ -296,8 +319,11 @@ function catalog.artist(args)
       }
     })
 
+    debugLog("catalog.artist kmr/v3/author res: " .. tostring(res and res.status) .. " err: " .. tostring(err))
+
     if res and res.status == 1 and res.data then
       detail = models.artist(res.data)
+      debugLog("catalog.artist detail coverUrl: " .. tostring(detail and detail.coverUrl))
     end
   end
 
@@ -313,6 +339,7 @@ function catalog.artist(args)
         else
           detail = fallback
         end
+        debugLog("catalog.artist used fallback coverUrl: " .. tostring(detail and detail.coverUrl))
       end
     end
   end
@@ -323,6 +350,7 @@ end
 -- 获取歌手热门歌曲
 function catalog.artistSongs(args)
   local rawId = tostring(args and args.id or "")
+  debugLog("catalog.artistSongs called with rawId: " .. rawId)
   if rawId == "" then return {} end
 
   local authorId, cachedAuthor = resolveAuthor(rawId)
@@ -333,12 +361,12 @@ function catalog.artistSongs(args)
   local songs = {}
 
   -- 1. 优先使用纯数字 authorId 请求 OpenAPI
-  if authorId and authorId:match("^%d+$") then
+  if isNumericId(authorId) then
     local res, err = transport.request({
       method = "POST",
       path = "/kmr/v1/audio_group/author",
       body = {
-        author_id = authorId,
+        author_id = tostring(authorId),
         pagesize = limit,
         page = page,
         sort = 1, -- 1=最热, 2=最新
@@ -350,6 +378,8 @@ function catalog.artistSongs(args)
       }
     })
 
+    debugLog("catalog.artistSongs kmr/v1 res: " .. tostring(res and (res.data and #res.data or "no-data")) .. " err: " .. tostring(err))
+
     local list = res and res.data
     if list and type(list) == "table" then
       for _, item in ipairs(list) do
@@ -358,7 +388,7 @@ function catalog.artistSongs(args)
           -- 如果歌曲自带的歌手列表缺乏有效 ID，补齐此歌手的数字 ID
           if authorId and (#s.artists == 0 or s.artists[1].id == s.artists[1].name) then
             local aName = (s.artists[1] and s.artists[1].name ~= "") and s.artists[1].name or (cachedAuthor and cachedAuthor.AuthorName or rawId)
-            s.artists = { { id = authorId, name = aName } }
+            s.artists = { { id = tostring(authorId), name = aName } }
           end
           table.insert(songs, s)
         end
@@ -366,13 +396,17 @@ function catalog.artistSongs(args)
     end
   end
 
+  debugLog("catalog.artistSongs after api, songs count: " .. tostring(#songs))
+
   -- 2. 兜底保障：若 OpenAPI 未返回歌曲或 ID 解析受阻，直接通过综合搜索拉取该歌手的歌曲
   if #songs == 0 then
     local queryName = (cachedAuthor and cachedAuthor.AuthorName) or rawId
+    debugLog("catalog.artistSongs fallback searching queryName: " .. queryName)
     local sRes = catalog.search({ query = queryName, limit = limit, offset = offset })
     if sRes and sRes.songs and #sRes.songs > 0 then
       songs = sRes.songs
     end
+    debugLog("catalog.artistSongs fallback found count: " .. tostring(#songs))
   end
 
   return songs
@@ -388,7 +422,7 @@ function catalog.artistAlbums(args)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
-  if not authorId or not authorId:match("^%d+$") then
+  if not isNumericId(authorId) then
     return {}
   end
 
@@ -396,7 +430,7 @@ function catalog.artistAlbums(args)
     method = "POST",
     path = "/kmr/v1/author/albums",
     body = {
-      author_id = authorId,
+      author_id = tostring(authorId),
       pagesize = limit,
       page = page,
       sort = 3, -- 3=最热, 1=最新
