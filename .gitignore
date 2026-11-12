@@ -8,6 +8,8 @@ dist/
 *.tar.gz
 
 # Environment & temporary files
+__pycache__/
+*.pyc
 .env
 .env.*
 *.log
