@@ -1,10 +1,10 @@
-# Lazer Kugou Music Plugin (酷狗音乐插件)
+# 🎵 Lazer Kugou Music Plugin (酷狗音乐插件)
 
 专为 [Lazer](https://github.com/chuxuehaocai/Lazer) 现代跨平台音乐播放器打造的**酷狗音乐（KuGou Music）官方/第三方 Lua Gateway 扩展插件**。
 
 ---
 
-## 特性亮点
+## ✨ 特性亮点
 
 - **全能力支持**：
   - **歌曲搜索**：单曲、专辑、歌手多维度搜索与纠错。
@@ -17,35 +17,35 @@
 
 ---
 
-## 界面预览 (Preview)
+## 📸 界面预览 (Preview)
 
-### 1. 主页发现与专属电台
+### 📻 1. 主页发现与专属电台
 深度融合酷狗推荐算法，支持今日限定好歌、私人漫游、心动模式、热门排行榜与电台流。
 ![主页发现与电台](docs/images/preview/homepage.png)
 
-### 2. 单曲搜索 (Song Search)
+### 🔍 2. 单曲搜索 (Song Search)
 多维度精准检索单曲，快速匹配歌曲、歌手与完整音质信息。
 ![单曲搜索](docs/images/preview/search.song.iyowa.png)
 
-### 3. 专辑搜索 (Album Search)
+### 💿 3. 专辑搜索 (Album Search)
 支持独立专辑 Tab 检索，呈现完整的唱片发行与专辑详情。
 ![专辑搜索](docs/images/preview/search.album.lol.png)
 
-### 4. 歌单搜索 (Playlist Search)
+### 📑 4. 歌单搜索 (Playlist Search)
 检索丰富的公共精选歌单与分类特辑，支持即时浏览与整张试听。
 ![歌单搜索](docs/images/preview/search.songlist.jaychou.png)
 
-### 5. 红心收藏与我喜欢的音乐 (Favorites)
+### ❤️ 5. 红心收藏与我喜欢的音乐 (Favorites)
 播放器底栏爱心一键点亮与取消，双向秒级无感同步酷狗云端“我喜欢”歌单。
 ![红心收藏与我喜欢的音乐](docs/images/preview/like.png)
 
-### 6. 云端自建歌单同步 (User Created Playlists)
+### ☁️ 6. 云端自建歌单同步 (User Created Playlists)
 手机端酷狗 App 自建歌单无缝同步，纯净挂载于左侧资料库与“我的音乐”。
 ![自建歌单联动](docs/images/preview/self.create.songlist.png)
 
 ---
 
-## 主页八大卡片与电台接口映射 (Home Cards & Radio Architecture)
+## 🗺️ 主页八大卡片与电台接口映射 (Home Cards & Radio Architecture)
 
 Lazer 播放器主页顶部设置了 4 个快捷推荐卡片，中下方设置了【为你创建的电台】流。除【反复聆听】由 Lazer 本地历史驱动外，其余卡片均深度对接了酷狗推荐算法与 OpenAPI。参考 [KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) 的接口实现映射如下：
 
@@ -58,7 +58,7 @@ Lazer 播放器主页顶部设置了 4 个快捷推荐卡片，中下方设置�
 | **红心随机** | 电台专栏 #2 | `onLiked` / `collections.liked` | `POST /v4/get_list_all_file` ([`RawPlaylistApi.cs` L122](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawPlaylistApi.cs#L122)) |
 | **歌手电台** | 电台专栏 #4 | `onArtist` / `radio.artist` | `POST /kmr/v1/audio_group/author` ([`RawArtistApi.cs` L179](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawArtistApi.cs#L179)) |
 
-### 核心卡片机制与流转说明
+### ⚙️ 核心卡片机制与流转说明
 
 > **1. 今日限定好歌 (`onDaily`)**  
 > 基于已登录用户的长期听歌历史与画像，由酷狗算法引擎动态下发 30 首私人专属日推曲目。在 Lazer 中点击该卡片将自动拉取并呈现为完整的每日推荐虚拟歌单。
@@ -83,22 +83,22 @@ Lazer 播放器主页顶部设置了 4 个快捷推荐卡片，中下方设置�
 
 ---
 
-## 安装使用指南
+## 📦 安装使用指南
 
-### 方法一：通过 ZIP 导入（最简单）
+### 📥 方法一：通过 ZIP 导入（最简单）
 
 1. 前往本仓库的 [Releases](../../releases) 页面，下载最新的 `lazer.kugou.zip`。
 2. 打开 **Lazer** 播放器，进入 **设置 -> 插件管理**。
 3. 点击 **导入 ZIP 插件**，选择下载好的 `lazer.kugou.zip`。
 4. 启用插件后，在播放器音源切换列表即可选择 **酷狗音乐**！
 
-### 方法二：通过插件市场源自动更新
+### 🛒 方法二：通过插件市场源自动更新
 
 在 Lazer 插件源中添加本仓库或官方市场源，即可在内置插件市场一键安装与无感热更新。
 
 ---
 
-## 本地构建与打包
+## 🛠️ 本地构建与打包
 
 项目内置了 Node.js 一键校验与打包脚本：
 
@@ -109,13 +109,13 @@ node tools/build.js
 
 ---
 
-## 鸣谢与致敬
+## 💖 鸣谢与致敬
 
 - [chuxuehaocai/Lazer](https://github.com/chuxuehaocai/Lazer) - 优雅而纯粹的手工打造跨平台音乐播放器。
 - [Linsxyx/KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) - 极其规范、完善的开源酷狗音乐客户端与协议逆向实现，为本项目提供了坚实的协议基础。
 
 ---
 
-## 许可证
+## 📄 许可证
 
 本项目遵循 MIT 协议开源。仅供技术学习与交流使用，音频版权归酷狗音乐及相关版权方所有。
