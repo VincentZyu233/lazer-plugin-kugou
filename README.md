@@ -21,17 +21,37 @@
 
 Lazer 播放器主页顶部设置了 4 个快捷推荐卡片，中下方设置了【为你创建的电台】流。除【反复聆听】由 Lazer 本地历史驱动外，其余卡片均深度对接了酷狗推荐算法与 OpenAPI。参考 [KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) 的接口实现映射如下：
 
-| 卡片 / 场景 | 位置 | Lazer 宿主契约 | 酷狗接口与 `KugouMusic.NET` 源码映射 | 机制与流转说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| **今日限定好歌** | 顶部快捷 #1 | `onDaily` / `homeFeed.daily` | `POST /everyday_song_recommend` ([`RawDiscoveryApi.cs` L108](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L108)) | 基于用户画像下发 30 首专属日推曲目，打开虚拟歌单。 |
-| **私人漫游** | 顶部 #2 / 电台 #1 | `onFm` / `radio.personal` | `POST /v1/rcmd_list` ([`RawFmApi.cs` L13](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawFmApi.cs#L13)) | 私人 FM 算法漫游，根据听歌上下文连续流式切歌。 |
-| **心动模式** | 顶部 #3 / 电台 #3 | `onHeart` / `radio.heart` | `POST /everyday_style_recommend` ([`RawDiscoveryApi.cs` L131](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L131)) | 风格雷达推荐，拉取与收藏契合的相似风格曲目。 |
-| **反复聆听** | 顶部快捷 #4 | `onReplay` / `playQueue.recent` | *客户端本地回放队列* ([`home_pages.dart` L180](https://github.com/chuxuehaocai/Lazer/blob/main/lib/ui/home_pages.dart#L180)) | **本地闭环**：无需网络请求，直接循环播放最近历史。 |
-| **红心随机** | 电台专栏 #2 | `onLiked` / `collections.liked` | `POST /v4/get_list_all_file` ([`RawPlaylistApi.cs` L122](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawPlaylistApi.cs#L122)) | 同步云端默认收藏歌单，全量获取后客户端随机打乱。 |
-| **歌手电台** | 电台专栏 #4 | `onArtist` / `radio.artist` | `POST /kmr/v1/audio_group/author` ([`RawArtistApi.cs` L179](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawArtistApi.cs#L179)) | 提取播放中歌手 ID/名字，流式获取相关歌曲生成电台。 |
+| 卡片 / 场景 | 位置 | Lazer 宿主契约 | 酷狗接口与 `KugouMusic.NET` 源码映射 |
+| :--- | :--- | :--- | :--- |
+| **今日限定好歌** | 顶部快捷 #1 | `onDaily` / `homeFeed.daily` | `POST /everyday_song_recommend` ([`RawDiscoveryApi.cs` L108](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L108)) |
+| **私人漫游** | 顶部 #2 / 电台 #1 | `onFm` / `radio.personal` | `POST /v1/rcmd_list` ([`RawFmApi.cs` L13](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawFmApi.cs#L13)) |
+| **心动模式** | 顶部 #3 / 电台 #3 | `onHeart` / `radio.heart` | `POST /everyday_style_recommend` ([`RawDiscoveryApi.cs` L131](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawDiscoveryApi.cs#L131)) |
+| **反复聆听** | 顶部快捷 #4 | `onReplay` / `playQueue.recent` | *客户端本地回放队列* ([`home_pages.dart` L180](https://github.com/chuxuehaocai/Lazer/blob/main/lib/ui/home_pages.dart#L180)) |
+| **红心随机** | 电台专栏 #2 | `onLiked` / `collections.liked` | `POST /v4/get_list_all_file` ([`RawPlaylistApi.cs` L122](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawPlaylistApi.cs#L122)) |
+| **歌手电台** | 电台专栏 #4 | `onArtist` / `radio.artist` | `POST /kmr/v1/audio_group/author` ([`RawArtistApi.cs` L179](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawArtistApi.cs#L179)) |
 
-> **补充：用户资料与头像静默刷新机制**  
-> 每次 Lazer 宿主拉起会话校验（`checkSession`）时，插件通过 [`RawUserApi.cs` (L69-L99)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawUserApi.cs#L69-L99) 的 `/v7/get_all_list` 接口，自动静默比对酷狗云端的最新 `create_user_pic` 与 `list_create_username`，若手机端修改了资料将自动写回本地 `storage.json`，实现无感热同步。
+### 核心卡片机制与流转说明
+
+> **1. 今日限定好歌 (`onDaily`)**  
+> 基于已登录用户的长期听歌历史与画像，由酷狗算法引擎动态下发 30 首私人专属日推曲目。在 Lazer 中点击该卡片将自动拉取并呈现为完整的每日推荐虚拟歌单。
+
+> **2. 私人漫游 (`onFm`)**  
+> 对应酷狗私人 FM 模式。根据当前听歌上下文进行不间断智能切歌，支持无限下拉与连续流式预加载，适合沉浸式无尽探索。
+
+> **3. 心动模式 (`onHeart`)**  
+> 风格雷达推荐，拉取与用户收藏偏好高契合度的相似风格曲目，融合用户已知偏好与算法拓展。
+
+> **4. 反复聆听 (`onReplay`)**  
+> **纯客户端本地闭环**：无需发起任何网络请求，Lazer 直接从本地播放历史记录中拉起最近播放列表并循环起播。
+
+> **5. 红心随机 (`onLiked`)**  
+> 通过 `/v4/get_list_all_file` 接口拉取云端默认收藏（红心）歌单，获取全部收藏曲目后在客户端使用 Fisher-Yates 算法进行随机打乱起播。
+
+> **6. 歌手电台 (`onArtist`)**  
+> 智能提取当前播放曲目的歌手 ID 或歌手名，通过 `/kmr/v1/audio_group/author` 流式获取该歌手的热门歌曲及曲风关联曲目，自动生成该歌手的专属电台。
+
+> **7. 用户资料与头像静默刷新机制**  
+> 每次 Lazer 宿主拉起会话校验（`checkSession`）时，插件通过 [`RawUserApi.cs` (L69-L99)](https://github.com/Linsxyx/KugouMusic.NET/blob/master/src/Libraries/KuGou.Net/Protocol/Raw/RawUserApi.cs#L69-L99) 的 `/v7/get_all_list` 接口，自动静默比对酷狗云端的最新 `create_user_pic` 与 `list_create_username`，若手机端修改了头像或昵称将自动写回本地 `storage.json`，实现无感热同步。
 
 ---
 
