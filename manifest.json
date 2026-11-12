@@ -1,7 +1,7 @@
 {
   "id": "lazer.kugou",
   "name": "酷狗音乐",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "酷狗音乐 Lua Gateway 插件，支持搜索、高品质音频播放、歌词、歌单、歌手、主页推荐、电台、扫码与手机号登录。",
   "author": "VincentZyu",
   "entry": "main.lua",

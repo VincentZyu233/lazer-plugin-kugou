@@ -20,8 +20,8 @@ function discover.getPersonalFmSongs(mode, songPoolId)
   local key = crypto.calc_login_key(nowMsStr)
 
   local body = {
-    appid = config.appId,
-    clienttime = tonumber(nowMsStr),
+    appid = tonumber(config.appId) or 3116,
+    clienttime = math.floor(nowMs),
     mid = mid,
     action = "play",
     recommend_source_locked = 0,
@@ -31,7 +31,7 @@ function discover.getPersonalFmSongs(mode, songPoolId)
     platform = "android",
     area_code = 1,
     remain_songcnt = 0,
-    clientver = config.clientVer,
+    clientver = tonumber(config.clientVer) or 11440,
     is_overplay = 0,
     mode = mode or "normal",
     fakem = "ca981cfc583a4c37f28d2d49000013c16a0a",
@@ -40,8 +40,8 @@ function discover.getPersonalFmSongs(mode, songPoolId)
   }
 
   if userId ~= "" then
-    body.userid = userId
-    body.kguid = userId
+    body.userid = tostring(userId)
+    body.kguid = tostring(userId)
   end
   if token ~= "" then
     body.token = token
@@ -65,6 +65,7 @@ function discover.getPersonalFmSongs(mode, songPoolId)
     end
   end
 
+  transport.debugLog("getPersonalFmSongs mode=" .. tostring(mode) .. " res=" .. tostring(res and res.status) .. " count=" .. tostring(#songs))
   return songs
 end
 
@@ -73,17 +74,24 @@ function discover.homeFeed()
   local session = transport.getSession()
   local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
 
-  -- 1. 获取推荐歌单 (拉取 20 个，分别分配给 recommended 和 playlists，避免内容重复)
+  -- 1. 获取推荐歌单 (拉取 30 个，分别分配给 recommended 和 playlists，避免内容重复)
+  local nowSec = math.floor(host.now() / 1000)
+  local key = crypto.calc_login_key(tostring(nowSec))
   local plRes, err = transport.request({
     method = "POST",
     path = "/v2/special_recommend",
     router = "specialrec.service.kugou.com",
     body = {
+      appid = tonumber(config.appId) or 3116,
+      mid = (session and session.mid) or config.defaultMid,
+      clientver = tonumber(config.clientVer) or 11440,
       platform = "android",
+      clienttime = nowSec,
+      userid = tostring(userId),
       module_id = 1,
       page = 1,
-      pagesize = 20,
-      userid = userId,
+      pagesize = 30,
+      key = key,
       special_recommend = {
         withtag = 1,
         withsong = 0,
@@ -130,7 +138,7 @@ function discover.homeFeed()
     router = "everydayrec.service.kugou.com",
     body = {
       platform = "android",
-      userid = userId
+      userid = tostring(userId)
     }
   })
 
@@ -162,24 +170,42 @@ end
 
 -- 发现页歌单列表
 function discover.playlists(args)
+  local session = transport.getSession()
+  local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
   local limit = tonumber(args and args.limit or 30)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
+  local nowSec = math.floor(host.now() / 1000)
+  local key = crypto.calc_login_key(tostring(nowSec))
   local res, err = transport.request({
     method = "POST",
     path = "/v2/special_recommend",
     router = "specialrec.service.kugou.com",
     body = {
+      appid = tonumber(config.appId) or 3116,
+      mid = (session and session.mid) or config.defaultMid,
+      clientver = tonumber(config.clientVer) or 11440,
       platform = "android",
+      clienttime = nowSec,
+      userid = tostring(userId),
       module_id = 1,
       page = page,
       pagesize = limit,
+      key = key,
       special_recommend = {
-        withrecommend = 1,
+        withtag = 1,
+        withsong = 0,
         sort = 1,
-        ugc = 1
-      }
+        ugc = 1,
+        is_selected = 0,
+        withrecommend = 1,
+        area_code = 1,
+        categoryid = 0
+      },
+      req_multi = 1,
+      retrun_min = 5,
+      return_special_falg = 1
     }
   })
 
@@ -198,6 +224,7 @@ end
 function discover.favorites(args)
   local session = transport.getSession()
   if not session or not session.userId or session.userId == "0" or not session.token or session.token == "" then
+    transport.debugLog("discover.favorites no session")
     return {}
   end
 
@@ -205,13 +232,15 @@ function discover.favorites(args)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
+  transport.debugLog("discover.favorites start page=" .. tostring(page) .. " limit=" .. tostring(limit))
+
   local res, err = transport.request({
     method = "POST",
     path = "/v4/get_list_all_file",
     router = "cloudlist.service.kugou.com",
     body = {
       listid = 2, -- 酷狗“我喜欢”歌单
-      userid = tonumber(session.userId) or 0,
+      userid = tostring(session.userId),
       token = session.token,
       type = 0,
       page = page,
@@ -225,20 +254,25 @@ function discover.favorites(args)
 
   local songs = {}
   local list = res and res.data and res.data.info
+  transport.debugLog("discover.favorites res=" .. tostring(res and res.status) .. " rawCount=" .. tostring(list and #list or 0))
+
   if list and type(list) == "table" then
     for _, item in ipairs(list) do
-      local s = models.song(item)
-      if s and s.id and s.id ~= "" then
+      local okSong, s = pcall(models.song, item)
+      if okSong and s and s.id and s.id ~= "" then
         s.starred = true
         local h = s.id:lower()
         if item.fileid then
           discover.fileIdMap[h] = item.fileid
         end
         table.insert(songs, s)
+      else
+        transport.debugLog("models.song fail: " .. tostring(s))
       end
     end
   end
 
+  transport.debugLog("discover.favorites done songs=" .. tostring(#songs))
   return songs
 end
 

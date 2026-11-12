@@ -549,13 +549,16 @@ function catalog.radio(args)
   local kind = tostring(args and args.kind or "personal"):lower()
   local limit = tonumber(args and args.limit or 30)
 
+  transport.debugLog("catalog.radio called kind=" .. tostring(kind) .. " seed=" .. tostring(args and args.seed))
+
   -- 1. 歌手电台 (artist radio)
   if kind == "artist" and args and args.seed and tostring(args.seed) ~= "" then
-    return catalog.artistSongs({ id = tostring(args.seed), limit = limit })
+    local aSongs = catalog.artistSongs({ id = tostring(args.seed), limit = limit })
+    if aSongs and #aSongs > 0 then return aSongs end
   end
 
-  -- 2. 私人漫游 (personal): 调取酷狗真实私人 FM 流
-  if kind == "personal" then
+  -- 2. 私人漫游 (personal / personalfm): 调取酷狗真实私人 FM 流
+  if kind == "personal" or kind == "personalfm" then
     local songs = discover.getPersonalFmSongs("normal", 0)
     if songs and #songs > 0 then return songs end
   end
@@ -574,7 +577,14 @@ function catalog.radio(args)
     end
   end
 
-  -- 5. 兜底方案：每日推荐歌曲
+  -- 5. 如果心动模式或私人漫游酷狗个性化流为空，尝试使用收藏歌曲作为安全源
+  local favSongs = discover.favorites({ limit = 30, offset = 0 })
+  if favSongs and #favSongs > 0 then
+    transport.debugLog("catalog.radio fallback to favorites count=" .. tostring(#favSongs))
+    return favSongs
+  end
+
+  -- 6. 兜底方案：每日推荐歌曲
   local session = transport.getSession()
   local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
 
@@ -584,7 +594,7 @@ function catalog.radio(args)
     router = "everydayrec.service.kugou.com",
     body = {
       platform = "android",
-      userid = userId
+      userid = tostring(userId)
     }
   })
 
@@ -598,6 +608,7 @@ function catalog.radio(args)
     end
   end
 
+  transport.debugLog("catalog.radio fallback to daily count=" .. tostring(#fallbackSongs))
   return fallbackSongs
 end
 
@@ -605,12 +616,17 @@ end
 function catalog.setFavorite(args)
   local session = transport.getSession()
   if not session or not session.userId or session.userId == "0" or not session.token or session.token == "" then
+    transport.debugLog("catalog.setFavorite failed: no session")
     return false
   end
 
   local hash = tostring(args and args.id or "")
-  if hash == "" then return false end
+  if hash == "" then
+    transport.debugLog("catalog.setFavorite failed: empty hash")
+    return false
+  end
   local isFav = args.favorite == true
+  transport.debugLog("catalog.setFavorite hash=" .. hash .. " fav=" .. tostring(isFav))
 
   if isFav then
     -- 添加到“我喜欢” (listid = 2)
@@ -622,11 +638,11 @@ function catalog.setFavorite(args)
       params = {
         last_time = nowSec,
         last_area = "gztx",
-        userid = session.userId,
+        userid = tostring(session.userId),
         token = session.token
       },
       body = {
-        userid = session.userId,
+        userid = tostring(session.userId),
         token = session.token,
         listid = "2",
         list_ver = 0,
@@ -648,6 +664,7 @@ function catalog.setFavorite(args)
         }
       }
     })
+    transport.debugLog("catalog.setFavorite add res=" .. tostring(res and res.status) .. " err=" .. tostring(err))
     if res and res.data and res.data.info and res.data.info[1] then
       local fid = res.data.info[1].fileid
       if fid then
@@ -663,6 +680,7 @@ function catalog.setFavorite(args)
       discover.favorites({ limit = 500, offset = 0 })
       fid = discover.fileIdMap[hash:lower()]
     end
+    transport.debugLog("catalog.setFavorite delete fid=" .. tostring(fid))
     if fid then
       local res, err = transport.request({
         method = "POST",
@@ -670,7 +688,7 @@ function catalog.setFavorite(args)
         router = "cloudlist.service.kugou.com",
         body = {
           listid = "2",
-          userid = session.userId,
+          userid = tostring(session.userId),
           token = session.token,
           type = 0,
           list_ver = 0,
@@ -679,6 +697,7 @@ function catalog.setFavorite(args)
           }
         }
       })
+      transport.debugLog("catalog.setFavorite delete res=" .. tostring(res and res.status) .. " err=" .. tostring(err))
       discover.fileIdMap[hash:lower()] = nil
     end
     return true

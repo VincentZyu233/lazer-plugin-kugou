@@ -106,9 +106,9 @@ function crypto.calc_web_signature(params, salt)
   return crypto.md5(table.concat(parts))
 end
 
--- 登录与个性化推荐专用 key 计算: MD5(appId + "1001" + clientVer + clientTimeMs + "1")
+-- 登录与个性化推荐专用 key 计算: MD5(appId + liteSalt + clientVer + clientTimeMs)
 function crypto.calc_login_key(timeMs)
-  local raw = tostring(config.appId) .. "1001" .. tostring(config.clientVer) .. tostring(timeMs) .. "1"
+  local raw = tostring(config.appId) .. tostring(config.liteSalt) .. tostring(config.clientVer) .. tostring(timeMs)
   return crypto.md5(raw)
 end
 

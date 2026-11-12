@@ -13,18 +13,30 @@ function models.song(raw)
   -- 如果没有提取出 songName，但有 FileName 或 name (如 "歌手 - 歌名")
   local fallbackName = raw.FileName or raw.filename or raw.name or ""
   if songName == "" and fallbackName ~= "" then
-    local s, n = string.match(fallbackName, "^(.-)%s*-%s*(.+)$")
-    if s and n then
-      if singerName == "" then singerName = s end
-      songName = n
+    local dashStart, dashEnd = string.find(fallbackName, " - ", 1, true)
+    if dashStart then
+      if singerName == "" then
+        singerName = string.sub(fallbackName, 1, dashStart - 1)
+      end
+      songName = string.sub(fallbackName, dashEnd + 1)
     else
       songName = fallbackName
     end
+    -- 去掉末尾的音频扩展名
+    local sLen = string.len(songName)
+    if sLen > 4 then
+      local ext = string.lower(string.sub(songName, -4))
+      if ext == ".mp3" or ext == ".m4a" then
+        songName = string.sub(songName, 1, -5)
+      elseif sLen > 5 and string.lower(string.sub(songName, -5)) == ".flac" then
+        songName = string.sub(songName, 1, -6)
+      end
+    end
   end
 
-  -- 提取歌手列表，优先使用结构化的 Singers / authors 数组
+  -- 提取歌手列表，优先使用结构化的 Singers / authors / singerinfo 数组
   local artists = {}
-  local singerArr = raw.Singers or raw.authors or raw.singers
+  local singerArr = raw.Singers or raw.authors or raw.singers or raw.singerinfo
   if singerArr and type(singerArr) == "table" and #singerArr > 0 then
     for _, s in ipairs(singerArr) do
       local name = s.name or s.author_name or s.singername
@@ -55,20 +67,20 @@ function models.song(raw)
   end
 
   -- 提取时长 (毫秒)
-  local durationSec = tonumber(raw.Duration or raw.duration or raw.timelength or raw.timelength_128 or 0)
-  local durationMs = durationSec
-  if durationSec and durationSec > 0 and durationSec < 10000 then
-    durationMs = durationSec * 1000
+  local rawDuration = tonumber(raw.Duration or raw.duration or raw.timelength or raw.timelength_128 or raw.timelen or 0)
+  local durationMs = rawDuration
+  if rawDuration and rawDuration > 0 and rawDuration < 10000 then
+    durationMs = rawDuration * 1000
   end
 
   -- 提取专辑 ID 和名称
-  local rawAlbumId = raw.AlbumID or raw.album_id or raw.AlbumId
+  local rawAlbumId = raw.AlbumID or raw.album_id or raw.AlbumId or (raw.albuminfo and raw.albuminfo.id)
   local albumId = nil
   if rawAlbumId and tostring(rawAlbumId) ~= "0" and tostring(rawAlbumId) ~= "" then
     albumId = tostring(rawAlbumId)
   end
 
-  local albumName = raw.AlbumName or raw.album_name or ""
+  local albumName = raw.AlbumName or raw.album_name or (raw.albuminfo and raw.albuminfo.name) or ""
 
   return {
     id = tostring(hash),
@@ -152,7 +164,7 @@ function models.album(raw)
 
   local pubStr = tostring(raw.publish_date or raw.publish_time or "")
   local year = nil
-  if #pubStr >= 4 then
+  if string.len(pubStr) >= 4 then
     local subY = string.sub(pubStr, 1, 4)
     local nY = tonumber(subY)
     if nY and nY > 1900 and nY < 2100 then

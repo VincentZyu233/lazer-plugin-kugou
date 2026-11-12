@@ -41,6 +41,15 @@ function transport.clearSession()
   transport.setSession(nil)
 end
 
+function transport.debugLog(msg)
+  local logs = host.storage_get("debug_logs") or "[]"
+  local ok, arr = pcall(function() return host.json_decode(logs) end)
+  if not ok or type(arr) ~= "table" then arr = {} end
+  table.insert(arr, { time = host.now(), msg = tostring(msg) })
+  if #arr > 50 then table.remove(arr, 1) end
+  host.storage_set("debug_logs", host.json_encode(arr))
+end
+
 -- 组装 URL 查询字符串
 local function buildQueryString(params)
   local queryParts = {}
@@ -133,9 +142,10 @@ function transport.request(options)
     end
   end
 
-  local resp = host.http(reqSpec)
-  if not resp or not resp.body or resp.status >= 500 then
-    local errDetail = "HTTP Error: " .. tostring(resp and resp.status) .. ", body: " .. tostring(resp and resp.body)
+  local okHttp, resp = pcall(function() return host.http(reqSpec) end)
+  if not okHttp or not resp or not resp.body or resp.status >= 500 then
+    local errDetail = "HTTP Error: " .. tostring(not okHttp and resp or (resp and resp.status)) .. ", url: " .. fullUrl
+    transport.debugLog(errDetail)
     return nil, errDetail
   end
 
