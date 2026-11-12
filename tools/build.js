@@ -57,7 +57,7 @@ function collectFiles(dir, base = '') {
     const relPath = path.posix.join(base, entry.name);
 
     if (entry.isDirectory()) {
-      if (entry.name !== 'tools' && entry.name !== 'dist' && entry.name !== '.git' && entry.name !== '.github') {
+      if (entry.name !== 'tools' && entry.name !== 'dist' && entry.name !== '.git' && entry.name !== '.github' && entry.name !== '.venv' && entry.name !== 'test') {
         collectFiles(fullPath, relPath);
       }
     } else {

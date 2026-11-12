@@ -10,15 +10,15 @@ function models.song(raw)
   local songName = raw.SongName or raw.songname or raw.OriSongName or raw.audio_name or ""
   local singerName = raw.SingerName or raw.singername or raw.author_name or ""
 
-  -- 如果没有提取出 songName，但有 FileName (如 "歌手 - 歌名")
-  if songName == "" and (raw.FileName or raw.filename) then
-    local fn = raw.FileName or raw.filename
-    local s, n = string.match(fn, "^(.-)%s*-%s*(.+)$")
+  -- 如果没有提取出 songName，但有 FileName 或 name (如 "歌手 - 歌名")
+  local fallbackName = raw.FileName or raw.filename or raw.name or ""
+  if songName == "" and fallbackName ~= "" then
+    local s, n = string.match(fallbackName, "^(.-)%s*-%s*(.+)$")
     if s and n then
       if singerName == "" then singerName = s end
       songName = n
     else
-      songName = fn
+      songName = fallbackName
     end
   end
 
@@ -90,6 +90,8 @@ function models.artist(raw)
   if avatar and avatar ~= "" then
     avatar = avatar:gsub("^http://", "https://")
     avatar = avatar:gsub("{size}", "480")
+    avatar = avatar:gsub("/240/", "/480/")
+    avatar = avatar:gsub("/150/", "/480/")
   end
 
   local desc = raw.intro or raw.Intro or ""
@@ -115,10 +117,12 @@ end
 function models.album(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
-  local cover = raw.sizable_cover or raw.cover or raw.pic or ""
+  local cover = raw.sizable_cover or raw.cover or raw.pic or raw.img or ""
   if cover and cover ~= "" then
     cover = cover:gsub("^http://", "https://")
     cover = cover:gsub("{size}", "400")
+    cover = cover:gsub("/240/", "/400/")
+    cover = cover:gsub("/150/", "/400/")
   end
 
   local artists = {}
@@ -139,22 +143,31 @@ function models.album(raw)
       id = tostring(raw.author_id or raw.AuthorId or aName),
       name = tostring(aName)
     })
+  elseif raw.singer and raw.singer ~= "" then
+    table.insert(artists, {
+      id = tostring(raw.singerid or raw.singer),
+      name = tostring(raw.singer)
+    })
   end
 
+  local pubStr = tostring(raw.publish_date or raw.publish_time or "")
   local year = nil
-  if raw.publish_date and type(raw.publish_date) == "string" then
-    local y = raw.publish_date:match("^(%d%d%d%d)")
-    if y then year = tonumber(y) end
+  if #pubStr >= 4 then
+    local subY = string.sub(pubStr, 1, 4)
+    local nY = tonumber(subY)
+    if nY and nY > 1900 and nY < 2100 then
+      year = nY
+    end
   end
 
   return {
-    id = tostring(raw.album_id or raw.AlbumID or raw.id or ""),
-    title = tostring(raw.album_name or raw.AlbumName or raw.name or "专辑"),
+    id = tostring(raw.album_id or raw.AlbumID or raw.albumid or raw.id or ""),
+    title = tostring(raw.album_name or raw.AlbumName or raw.albumname or raw.name or "专辑"),
     artists = artists,
     coverUrl = (cover and cover ~= "") and cover or nil,
     year = year,
-    songCount = tonumber(raw.song_count or raw.AudioCount or 0),
-    description = tostring(raw.intro or "")
+    songCount = tonumber(raw.song_count or raw.songcount or raw.AudioCount or 0),
+    description = tostring(raw.intro or raw.short_intro or "")
   }
 end
 
@@ -162,10 +175,11 @@ end
 function models.playlist(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
-  local cover = raw.imgurl or raw.pic or raw.cover or raw.special_cover or ""
+  local cover = raw.imgurl or raw.pic or raw.cover or raw.special_cover or raw.img or ""
   if cover and cover ~= "" then
     cover = cover:gsub("^http://", "https://")
     cover = cover:gsub("{size}", "400")
+    cover = cover:gsub("/150/", "/400/")
   end
 
   return {
@@ -173,7 +187,7 @@ function models.playlist(raw)
     name = tostring(raw.specialname or raw.name or raw.title or "歌单"),
     description = tostring(raw.intro or raw.description or ""),
     coverUrl = (cover and cover ~= "") and cover or nil,
-    songCount = tonumber(raw.songcount or raw.total or raw.count or 0),
+    songCount = tonumber(raw.song_count or raw.songcount or raw.total or raw.count or 0),
     owner = raw.nickname or raw.username or raw.user_name,
     isFavorites = raw.isFavorites == true
   }

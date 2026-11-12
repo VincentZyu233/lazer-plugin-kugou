@@ -2,17 +2,24 @@ local config = require("kg.config")
 local crypto = require("kg.crypto")
 local transport = require("kg.transport")
 local models = require("kg.models")
+local discover = require("kg.discover")
 
 local catalog = {}
 
--- 搜索歌曲、歌单或专辑
+-- 搜索歌曲、歌手、专辑与歌单
 function catalog.search(args)
   local query = tostring(args and args.query or "")
   local limit = tonumber(args and args.limit or 30)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
 
-  local res, err = transport.request({
+  if query == "" then
+    return { songs = {}, albums = {}, artists = {}, playlists = {} }
+  end
+
+  -- 1. 搜索单曲
+  local songList = {}
+  local songRes, _ = transport.request({
     path = "/v3/search/song",
     params = {
       keyword = query,
@@ -23,23 +30,90 @@ function catalog.search(args)
     },
     router = "complexsearch.kugou.com"
   })
+  local rawSongs = songRes and songRes.data and (songRes.data.lists or songRes.data.info)
+  if rawSongs and type(rawSongs) == "table" then
+    for _, item in ipairs(rawSongs) do
+      local s = models.song(item)
+      if s and s.id and s.id ~= "" then
+        table.insert(songList, s)
+      end
+    end
+  end
 
-  local songList = {}
-  local rawList = res and res.data and (res.data.lists or res.data.info)
-  if rawList and type(rawList) == "table" then
-    for _, item in ipairs(rawList) do
-      local song = models.song(item)
-      if song and song.id and song.id ~= "" then
-        table.insert(songList, song)
+  -- 2. 搜索歌手
+  local artistList = {}
+  local authorRes, _ = transport.request({
+    path = "/v1/search/author",
+    params = {
+      keyword = query,
+      page = tostring(page),
+      pagesize = tostring(limit),
+      platform = "AndroidFilter",
+      iscorrection = "1"
+    },
+    router = "complexsearch.kugou.com"
+  })
+  local rawAuthors = authorRes and authorRes.data and authorRes.data.lists
+  if rawAuthors and type(rawAuthors) == "table" then
+    for _, item in ipairs(rawAuthors) do
+      local a = models.artist(item)
+      if a and a.id and a.id ~= "" then
+        table.insert(artistList, a)
+      end
+    end
+  end
+
+  -- 3. 搜索专辑
+  local albumList = {}
+  local albumRes, _ = transport.request({
+    path = "/v1/search/album",
+    params = {
+      keyword = query,
+      page = tostring(page),
+      pagesize = tostring(limit),
+      platform = "AndroidFilter",
+      iscorrection = "1"
+    },
+    router = "complexsearch.kugou.com"
+  })
+  local rawAlbums = albumRes and albumRes.data and albumRes.data.lists
+  if rawAlbums and type(rawAlbums) == "table" then
+    for _, item in ipairs(rawAlbums) do
+      local alb = models.album(item)
+      if alb and alb.id and alb.id ~= "" then
+        table.insert(albumList, alb)
+      end
+    end
+  end
+
+  -- 4. 搜索歌单
+  local playlistList = {}
+  local specialRes, _ = transport.request({
+    path = "/v1/search/special",
+    params = {
+      keyword = query,
+      page = tostring(page),
+      pagesize = tostring(limit),
+      platform = "AndroidFilter",
+      iscorrection = "1"
+    },
+    router = "complexsearch.kugou.com"
+  })
+  local rawSpecials = specialRes and specialRes.data and specialRes.data.lists
+  if rawSpecials and type(rawSpecials) == "table" then
+    for _, item in ipairs(rawSpecials) do
+      local pl = models.playlist(item)
+      if pl and pl.id and pl.id ~= "" then
+        table.insert(playlistList, pl)
       end
     end
   end
 
   return {
     songs = songList,
-    albums = {},
-    artists = {},
-    playlists = {}
+    albums = albumList,
+    artists = artistList,
+    playlists = playlistList
   }
 end
 
@@ -475,7 +549,19 @@ function catalog.radio(args)
     end
   end
 
-  -- 3. 私人漫游 (personal) 或 心动模式 (heart): 从酷狗每日个性化推荐拉取歌曲流
+  -- 3. 私人漫游 (personal): 调取酷狗真实私人 FM 流
+  if kind == "personal" then
+    local songs = discover.getPersonalFmSongs("normal", 0)
+    if songs and #songs > 0 then return songs end
+  end
+
+  -- 4. 心动模式 (heart): 调取风格/口味个性化推荐池
+  if kind == "heart" then
+    local songs = discover.getPersonalFmSongs("normal", 1)
+    if songs and #songs > 0 then return songs end
+  end
+
+  -- 5. 兜底方案：每日推荐歌曲
   local session = transport.getSession()
   local userId = (session and session.userId and session.userId ~= "0") and session.userId or "0"
 
@@ -489,17 +575,101 @@ function catalog.radio(args)
     }
   })
 
-  local songs = {}
+  local fallbackSongs = {}
   if songRes and songRes.data and songRes.data.song_list then
     for _, item in ipairs(songRes.data.song_list) do
       local s = models.song(item)
       if s and s.id and s.id ~= "" then
-        table.insert(songs, s)
+        table.insert(fallbackSongs, s)
       end
     end
   end
 
-  return songs
+  return fallbackSongs
+end
+
+-- 设置/取消歌曲红心收藏 (同步酷狗云端“我喜欢”歌单)
+function catalog.setFavorite(args)
+  local session = transport.getSession()
+  if not session or not session.userId or session.userId == "0" or not session.token or session.token == "" then
+    return false
+  end
+
+  local hash = tostring(args and args.id or "")
+  if hash == "" then return false end
+  local isFav = args.favorite == true
+
+  if isFav then
+    -- 添加到“我喜欢” (listid = 2)
+    local name = tostring(args.name or args.title or "歌曲")
+    local nowSec = tostring(os.time())
+    local res, err = transport.request({
+      method = "POST",
+      path = "/cloudlist.service/v6/add_song",
+      params = {
+        last_time = nowSec,
+        last_area = "gztx",
+        userid = session.userId,
+        token = session.token
+      },
+      body = {
+        userid = session.userId,
+        token = session.token,
+        listid = "2",
+        list_ver = 0,
+        type = 0,
+        slow_upload = 1,
+        scene = "false;null",
+        data = {
+          {
+            number = 1,
+            name = name,
+            hash = hash:upper(),
+            size = 0,
+            sort = 0,
+            timelen = 0,
+            bitrate = 0,
+            album_id = 0,
+            mixsongid = 0
+          }
+        }
+      }
+    })
+    if res and res.data and res.data.info and res.data.info[1] then
+      local fid = res.data.info[1].fileid
+      if fid then
+        discover.fileIdMap[hash:lower()] = fid
+      end
+    end
+    return true
+  else
+    -- 取消收藏：从“我喜欢”删除 (listid = 2)
+    local fid = discover.fileIdMap[hash:lower()]
+    if not fid then
+      -- 查一次列表刷新映射
+      discover.favorites({ limit = 500, offset = 0 })
+      fid = discover.fileIdMap[hash:lower()]
+    end
+    if fid then
+      local res, err = transport.request({
+        method = "POST",
+        path = "/v4/delete_songs",
+        router = "cloudlist.service.kugou.com",
+        body = {
+          listid = "2",
+          userid = session.userId,
+          token = session.token,
+          type = 0,
+          list_ver = 0,
+          data = {
+            { fileid = fid }
+          }
+        }
+      })
+      discover.fileIdMap[hash:lower()] = nil
+    end
+    return true
+  end
 end
 
 return catalog

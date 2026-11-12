@@ -76,6 +76,8 @@ function plugin.call(operation, args)
     return discover.playlists(args)
   elseif operation == "favorites" then
     return discover.favorites(args)
+  elseif operation == "setFavorite" then
+    return catalog.setFavorite(args)
   end
 
   -- 未实现的操作返回空或报错
