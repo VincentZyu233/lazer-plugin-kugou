@@ -15,12 +15,13 @@ function discover.getPersonalFmSongs(mode, songPoolId)
   local token = (session and session.token) or ""
   local mid = (session and session.mid) or config.defaultMid
 
-  local nowMs = os.time() * 1000
-  local key = crypto.calc_login_key(nowMs)
+  local nowMs = host.now()
+  local nowMsStr = string.format("%.0f", nowMs)
+  local key = crypto.calc_login_key(nowMsStr)
 
   local body = {
     appid = config.appId,
-    clienttime = nowMs,
+    clienttime = tonumber(nowMsStr),
     mid = mid,
     action = "play",
     recommend_source_locked = 0,

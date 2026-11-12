@@ -264,6 +264,15 @@ function catalog.playlist(args)
   local specialId = tostring(args and args.id or "")
   if specialId == "" then return nil end
 
+  if specialId == "__lazer_favorites__" or specialId:find("favorites") then
+    return {
+      id = specialId,
+      name = "我喜欢",
+      isFavorites = true,
+      songCount = 0
+    }
+  end
+
   local res, err = transport.request({
     path = "/api/v5/special/info",
     params = {
@@ -280,6 +289,10 @@ end
 
 function catalog.playlistSongs(args)
   local specialId = tostring(args and args.id or "")
+  if specialId == "__lazer_favorites__" or specialId:find("favorites") then
+    return discover.favorites(args)
+  end
+
   local limit = tonumber(args and args.limit or 100)
   local offset = tonumber(args and args.offset or 0)
   local page = math.floor(offset / limit) + 1
@@ -541,24 +554,24 @@ function catalog.radio(args)
     return catalog.artistSongs({ id = tostring(args.seed), limit = limit })
   end
 
-  -- 2. 歌单心动/相似歌曲
-  if args and args.playlist and tostring(args.playlist) ~= "" then
-    local pSongs = catalog.playlistSongs({ id = tostring(args.playlist), limit = limit })
-    if pSongs and #pSongs > 0 then
-      return pSongs
-    end
-  end
-
-  -- 3. 私人漫游 (personal): 调取酷狗真实私人 FM 流
+  -- 2. 私人漫游 (personal): 调取酷狗真实私人 FM 流
   if kind == "personal" then
     local songs = discover.getPersonalFmSongs("normal", 0)
     if songs and #songs > 0 then return songs end
   end
 
-  -- 4. 心动模式 (heart): 调取风格/口味个性化推荐池
+  -- 3. 心动模式 (heart): 调取风格/口味个性化推荐池
   if kind == "heart" then
     local songs = discover.getPersonalFmSongs("normal", 1)
     if songs and #songs > 0 then return songs end
+  end
+
+  -- 4. 歌单心动/相似歌曲 (若指定了有效普通歌单)
+  if args and args.playlist and tostring(args.playlist) ~= "" and tostring(args.playlist) ~= "__lazer_favorites__" then
+    local pSongs = catalog.playlistSongs({ id = tostring(args.playlist), limit = limit })
+    if pSongs and #pSongs > 0 then
+      return pSongs
+    end
   end
 
   -- 5. 兜底方案：每日推荐歌曲
@@ -602,7 +615,7 @@ function catalog.setFavorite(args)
   if isFav then
     -- 添加到“我喜欢” (listid = 2)
     local name = tostring(args.name or args.title or "歌曲")
-    local nowSec = tostring(os.time())
+    local nowSec = tostring(math.floor(host.now() / 1000))
     local res, err = transport.request({
       method = "POST",
       path = "/cloudlist.service/v6/add_song",
