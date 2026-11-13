@@ -26,7 +26,7 @@ local config = {
 
   -- RSA 模数与指数 (用于登录参数与密码加密)
   -- Lite 公钥: modulus hex (128 bytes = 256 hex chars), exponent 65537
-  rsaLiteModulus = "c40a2d0da76511f3bb1cc2bbd3afbd8bea83b4d6b05b6c13eb8920c53f1af7679b32ba0d0edb843240ef1b836efed3ee240734c14c1399fd6594d16af22f52525d14d72e0155c6dcc8638d4f7bb94f3a0b1f4c29f991972f2a160a25eb0a9e724336be7f69bbd319ffab1c6dd8470b021dc434f3faea89f4a2a01b33bdbdd08b",
+  rsaLiteModulus = "c40a2d0da76511f3bb1cc2bbd3afbd8bea83b4d6b05b6c13eb8920c53f1af7679b32ba0d0edb843240ef1b836efed3ee240734c14c1399fd6594d16af22f52525d14d72e0155c6dcc8638d4f7bb94f3a0b1f4c29f991972f2a160a25eb0a9e724336be7f69bbd319ffab1c6dd8470b021dc434f3faba89f4a2a01b33bdbdd08b",
   rsaExponent = 65537,
 
   -- 接口基础域名
