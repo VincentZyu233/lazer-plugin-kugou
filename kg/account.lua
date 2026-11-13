@@ -200,50 +200,31 @@ function account.loginCaptcha(args)
   local timeMs = host.now()
 
   -- 1. 动态生成 AES Key 并加密登录载荷 (params)
-  local aesPayload = host.json_encode({
-    mobile = phone,
-    code = captcha
-  })
+  local aesPayload = string.format('{"mobile":"%s","code":"%s"}', phone, captcha)
   local aesStr, tempKey = crypto.aes_encrypt_dynamic(aesPayload)
 
-  -- 2. RSA 模幂加密密钥与时间戳包 (pk)
-  local pkData = host.json_encode({
-    clienttime_ms = timeMs,
-    key = tempKey
-  })
+  -- 2. RSA 模幂加密密钥与时间戳包 (pk，严禁浮点数 .0)
+  local pkData = string.format('{"clienttime_ms":%.0f,"key":"%s"}', timeMs, tempKey)
   local pk = crypto.rsa_encrypt_pk(pkData)
 
   -- 3. 计算 t1 与 t2 设备指纹
   local t1 = crypto.calc_t1(timeMs)
   local t2 = crypto.calc_t2(session.installGuid, session.installMac, session.installDev, timeMs)
 
-  -- 4. 组装酷狗移动端高安全握手 Body
-  local bodyMap = {
-    plat = 1,
-    support_multi = 1,
-    t1 = t1,
-    t2 = t2,
-    clienttime_ms = timeMs,
-    mobile = crypto.mask_mobile(phone),
-    key = crypto.calc_login_key(timeMs),
-    pk = pk,
-    params = aesStr,
-    dfid = "-",
-    dev = session.installDev,
-    gitversion = "5f0b7c4"
-  }
+  -- 4. 组装酷狗移动端高安全握手 Body (手工紧凑 JSON，严禁浮点数 .0 且与 C# 字段顺序一致)
+  local bodyJson = string.format(
+    '{"plat":1,"support_multi":1,"t1":"%s","t2":"%s","clienttime_ms":%.0f,"mobile":"%s","key":"%s","pk":"%s","params":"%s","dfid":"-","dev":"%s","gitversion":"5f0b7c4"}',
+    t1, t2, timeMs, crypto.mask_mobile(phone), crypto.calc_login_key(timeMs), pk, aesStr, session.installDev
+  )
 
-  if session.userId and session.userId ~= "" and session.userId ~= "0" then
-    bodyMap["userid"] = session.userId
-  end
-
-  -- 5. 发送至登录重试与容灾端点
+  -- 5. 发送至登录重试与容灾端点 (登录请求隔离旧 Token)
   local res, err = transport.request({
     method = "POST",
     host = config.loginRetryHost,
     path = "/v7/login_by_verifycode",
     router = config.loginRouter,
-    body = bodyMap,
+    noAuthToken = true,
+    body = bodyJson,
     headers = {
       ["support-calm"] = "1"
     }

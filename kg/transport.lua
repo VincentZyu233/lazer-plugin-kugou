@@ -114,8 +114,10 @@ function transport.request(options)
       mergedParams["uuid"] = session.uuid or crypto.md5((session.dfid or config.defaultDfid) .. (session.mid or config.defaultMid))
     end
     if not mergedParams["clienttime"] then mergedParams["clienttime"] = tostring(clientTimeSec) end
-    if not mergedParams["userid"] then mergedParams["userid"] = session.userId or "0" end
-    if session.token and session.token ~= "" and not mergedParams["token"] then
+    if not mergedParams["userid"] then
+      mergedParams["userid"] = options.noAuthToken and "0" or (session.userId or "0")
+    end
+    if not options.noAuthToken and session.token and session.token ~= "" and not mergedParams["token"] then
       mergedParams["token"] = session.token
     end
   end
