@@ -64,9 +64,7 @@ function crypto.rsa_encrypt(text)
     operation = "rsa_modpow",
     text = hex,
     inputEncoding = "hex",
-    modulus = config.rsaLiteModulus,
-    exponent = config.rsaExponent,
-    width = 256
+    modulus = config.rsaLiteModulus
   })
 end
 

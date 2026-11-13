@@ -43,9 +43,21 @@ function plugin.call(operation, args)
   elseif operation == "qrCheck" then
     return account.qrCheck(args)
   elseif operation == "sendCaptcha" then
-    return account.sendCaptcha(args)
+    local ok, res = pcall(function() return account.sendCaptcha(args) end)
+    if not ok then
+      local transport = require("kg.transport")
+      transport.debugLog("FATAL sendCaptcha: " .. tostring(res))
+      return { error = { code = 500, message = tostring(res) } }
+    end
+    return res
   elseif operation == "loginCaptcha" then
-    return account.loginCaptcha(args)
+    local ok, res = pcall(function() return account.loginCaptcha(args) end)
+    if not ok then
+      local transport = require("kg.transport")
+      transport.debugLog("FATAL loginCaptcha: " .. tostring(res))
+      return nil
+    end
+    return res
   end
 
   -- 3. 搜索与音频流、歌词

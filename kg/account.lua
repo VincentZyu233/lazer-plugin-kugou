@@ -191,9 +191,11 @@ function account.loginCaptcha(args)
   local phone = tostring(args and args.phone or "")
   local captcha = tostring(args and args.captcha or "")
   if phone == "" or captcha == "" then
+    transport.debugLog("loginCaptcha empty phone or captcha")
     return nil
   end
 
+  transport.debugLog("loginCaptcha start for " .. crypto.mask_mobile(phone))
   local session = transport.getSession()
   local timeMs = host.now()
 
@@ -278,6 +280,7 @@ function account.loginCaptcha(args)
     s.avatar = tostring(res.data.pic or "")
     s.vipType = tonumber(res.data.vip_type or 0)
     transport.setSession(s)
+    transport.debugLog("loginCaptcha SUCCESS: user=" .. s.userName .. " id=" .. s.userId)
     return account.session()
   end
 
