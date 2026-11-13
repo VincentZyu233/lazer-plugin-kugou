@@ -167,6 +167,8 @@ function account.sendCaptcha(args)
     method = "POST",
     host = config.loginHost,
     path = "/v7/send_mobile_code",
+    router = config.loginRouter,
+    noAuthToken = true,
     body = {
       businessid = 5,
       mobile = phone,
