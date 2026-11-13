@@ -18,7 +18,11 @@ local config = {
   -- 默认设备指纹与衍生标识
   defaultDfid = "-",
   defaultMid = "68358509610070717889884130747296293671",
-  defaultUuid = "8e97bb1f09bb99566860d4b9f29bf5b3",
+  defaultUuid = "081fffcbe73891679874ed2406088760",
+
+  -- 酷狗专用协议校验头
+  kgRf = "B9EDA08A64250DEFFBCADDEE00F8F25F",
+  kgThash = "5d816a0",
 
   -- RSA 模数与指数 (用于登录参数与密码加密)
   -- Lite 公钥: modulus hex (128 bytes = 256 hex chars), exponent 65537

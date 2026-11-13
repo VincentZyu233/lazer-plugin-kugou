@@ -248,6 +248,12 @@ function account.loginCaptcha(args)
   })
 
   if not res then
+    transport.debugLog("loginCaptcha network/http error: " .. tostring(err))
+    return nil
+  end
+
+  if res.status ~= 1 then
+    transport.debugLog("loginCaptcha failed resp: " .. host.json_encode(res))
     return nil
   end
 

@@ -45,12 +45,25 @@ function crypto.aes_cbc_decrypt(hexData, key, iv)
   })
 end
 
--- RSA 加密 (无填充/原始模幂)
+-- 字符串转 Hex 字符串
+function crypto.str_to_hex(str)
+  local hex = {}
+  for i = 1, #str do
+    table.insert(hex, string.format("%02x", string.byte(str, i)))
+  end
+  return table.concat(hex)
+end
+
+-- RSA 加密 (无填充/原始模幂，尾部以 0x00 字节补齐至 128 字节/256 字符 Hex)
 function crypto.rsa_encrypt(text)
+  local hex = crypto.str_to_hex(text)
+  if #hex < 256 then
+    hex = hex .. string.rep("00", math.floor((256 - #hex) / 2))
+  end
   return host.crypto({
     operation = "rsa_modpow",
-    text = text,
-    inputEncoding = "utf8",
+    text = hex,
+    inputEncoding = "hex",
     modulus = config.rsaLiteModulus,
     exponent = config.rsaExponent,
     width = 256
@@ -110,6 +123,20 @@ end
 function crypto.calc_login_key(timeMs)
   local raw = tostring(config.appId) .. tostring(config.liteSalt) .. tostring(config.clientVer) .. tostring(timeMs)
   return crypto.md5(raw)
+end
+
+-- 生成设备标识随机大写字母与数字串 (16位)
+function crypto.random_dev(len)
+  len = len or 16
+  local chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  local res = {}
+  local seed = host.now()
+  math.randomseed(seed)
+  for i = 1, len do
+    local idx = math.random(1, #chars)
+    table.insert(res, string.sub(chars, idx, idx))
+  end
+  return table.concat(res)
 end
 
 -- 生成随机 ASCII 字符串

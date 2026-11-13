@@ -23,7 +23,7 @@ function transport.getSession()
         needSave = true
       end
       if not currentSession.installDev or currentSession.installDev == "" then
-        currentSession.installDev = crypto.random_string(16)
+        currentSession.installDev = crypto.random_dev(16)
         needSave = true
       end
       if needSave then
@@ -42,7 +42,7 @@ function transport.getSession()
     vipType = 0,
     installGuid = crypto.random_hex(32):lower(),
     installMac = crypto.random_hex(32):lower(),
-    installDev = crypto.random_string(16)
+    installDev = crypto.random_dev(16)
   }
   transport.setSession(currentSession)
   return currentSession
@@ -110,7 +110,9 @@ function transport.request(options)
     if not mergedParams["clientver"] then mergedParams["clientver"] = options.official and config.officialClientVer or config.clientVer end
     if not mergedParams["dfid"] then mergedParams["dfid"] = session.dfid or config.defaultDfid end
     if not mergedParams["mid"] then mergedParams["mid"] = session.mid or config.defaultMid end
-    if not mergedParams["uuid"] then mergedParams["uuid"] = session.uuid or config.defaultUuid end
+    if not mergedParams["uuid"] then
+      mergedParams["uuid"] = session.uuid or crypto.md5((session.dfid or config.defaultDfid) .. (session.mid or config.defaultMid))
+    end
     if not mergedParams["clienttime"] then mergedParams["clienttime"] = tostring(clientTimeSec) end
     if not mergedParams["userid"] then mergedParams["userid"] = session.userId or "0" end
     if session.token and session.token ~= "" and not mergedParams["token"] then
@@ -141,7 +143,10 @@ function transport.request(options)
     ["dfid"] = session.dfid or config.defaultDfid,
     ["mid"] = session.mid or config.defaultMid,
     ["clienttime"] = tostring(clientTimeSec),
-    ["kg-rc"] = "1"
+    ["kg-rc"] = "1",
+    ["kg-rf"] = config.kgRf,
+    ["kg-thash"] = config.kgThash,
+    ["kg-rec"] = "1"
   }
   if options.router then
     headers["x-router"] = options.router
