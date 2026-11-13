@@ -224,6 +224,10 @@ function account.loginCaptcha(args)
     path = "/v7/login_by_verifycode",
     router = config.loginRouter,
     noAuthToken = true,
+    params = {
+      clienttime = tostring(math.floor(timeMs / 1000)),
+      userid = "0"
+    },
     body = bodyJson,
     headers = {
       ["support-calm"] = "1"
@@ -237,6 +241,7 @@ function account.loginCaptcha(args)
 
   if res.status ~= 1 then
     transport.debugLog("loginCaptcha failed resp: " .. host.json_encode(res))
+    transport.debugLog("loginCaptcha bodyJson: " .. tostring(bodyJson))
     return nil
   end
 

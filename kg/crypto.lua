@@ -2,6 +2,9 @@ local config = require("kg.config")
 
 local crypto = {}
 
+-- 初始化随机数发生器 (单次初始化，避免同一毫秒多次调用产生相同随机序列)
+pcall(function() math.randomseed(host.now()) end)
+
 function crypto.md5(text)
   if not text or text == "" then return "" end
   return host.crypto({ operation = "md5", text = tostring(text) })
@@ -131,8 +134,6 @@ function crypto.random_dev(len)
   local chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   local charsLen = string.len(chars)
   local res = {}
-  local seed = host.now()
-  math.randomseed(seed)
   for i = 1, len do
     local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))
@@ -146,8 +147,6 @@ function crypto.random_string(len)
   local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
   local charsLen = string.len(chars)
   local res = {}
-  local seed = host.now()
-  math.randomseed(seed)
   for i = 1, len do
     local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))
@@ -158,11 +157,16 @@ end
 -- 生成随机 Hex 字符串 (例如 32 位 GUID / Mac)
 function crypto.random_hex(len)
   len = len or 32
+  if host and host.random_hex then
+    local byteCount = math.floor(len / 2)
+    local ok, res = pcall(function() return host.random_hex(byteCount) end)
+    if ok and res and string.len(res) == len then
+      return string.lower(res)
+    end
+  end
   local chars = "0123456789abcdef"
   local charsLen = string.len(chars)
   local res = {}
-  local seed = host.now()
-  math.randomseed(seed)
   for i = 1, len do
     local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))

@@ -18,7 +18,7 @@ function transport.getSession()
         currentSession.installGuid = crypto.random_hex(32):lower()
         needSave = true
       end
-      if not currentSession.installMac or currentSession.installMac == "" then
+      if not currentSession.installMac or currentSession.installMac == "" or currentSession.installMac == currentSession.installGuid then
         currentSession.installMac = crypto.random_hex(32):lower()
         needSave = true
       end
