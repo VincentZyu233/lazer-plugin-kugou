@@ -1,5 +1,6 @@
 local config = require("kg.config")
 local transport = require("kg.transport")
+local crypto = require("kg.crypto")
 
 local account = {}
 
@@ -193,23 +194,83 @@ function account.loginCaptcha(args)
     return nil
   end
 
+  local session = transport.getSession()
+  local timeMs = host.now()
+
+  -- 1. 动态生成 AES Key 并加密登录载荷 (params)
+  local aesPayload = host.json_encode({
+    mobile = phone,
+    code = captcha
+  })
+  local aesStr, tempKey = crypto.aes_encrypt_dynamic(aesPayload)
+
+  -- 2. RSA 模幂加密密钥与时间戳包 (pk)
+  local pkData = host.json_encode({
+    clienttime_ms = timeMs,
+    key = tempKey
+  })
+  local pk = crypto.rsa_encrypt_pk(pkData)
+
+  -- 3. 计算 t1 与 t2 设备指纹
+  local t1 = crypto.calc_t1(timeMs)
+  local t2 = crypto.calc_t2(session.installGuid, session.installMac, session.installDev, timeMs)
+
+  -- 4. 组装酷狗移动端高安全握手 Body
+  local bodyMap = {
+    plat = 1,
+    support_multi = 1,
+    t1 = t1,
+    t2 = t2,
+    clienttime_ms = timeMs,
+    mobile = crypto.mask_mobile(phone),
+    key = crypto.calc_login_key(timeMs),
+    pk = pk,
+    params = aesStr,
+    dfid = "-",
+    dev = session.installDev,
+    gitversion = "5f0b7c4"
+  }
+
+  if session.userId and session.userId ~= "" and session.userId ~= "0" then
+    bodyMap["userid"] = session.userId
+  end
+
+  -- 5. 发送至登录重试与容灾端点
   local res, err = transport.request({
     method = "POST",
-    host = config.loginHost,
+    host = config.loginRetryHost,
     path = "/v7/login_by_verifycode",
-    body = {
-      mobile = phone,
-      code = captcha,
-      plat = 1
+    router = config.loginRouter,
+    body = bodyMap,
+    headers = {
+      ["support-calm"] = "1"
     }
   })
 
-  if res and res.status == 1 and res.data then
+  if not res then
+    return nil
+  end
+
+  -- 6. 解密返回的 secu_params 密文
+  if res.status == 1 and res.data then
+    if res.data.secu_params and res.data.secu_params ~= "" then
+      local okDec, decStr = pcall(crypto.aes_decrypt_dynamic, res.data.secu_params, tempKey)
+      if okDec and decStr and decStr ~= "" then
+        local okJson, decJson = pcall(function() return host.json_decode(decStr) end)
+        if okJson and type(decJson) == "table" then
+          for k, v in pairs(decJson) do
+            res.data[k] = v
+          end
+        end
+      end
+    end
+
     local s = transport.getSession()
-    s.userId = tostring(res.data.userid or "0")
+    s.userId = tostring(res.data.userid or res.data.id or "0")
     s.token = tostring(res.data.token or "")
-    s.userName = tostring(res.data.nickname or ("酷狗用户" .. s.userId))
+    s.userName = tostring(res.data.nickname or res.data.username or ("酷狗用户" .. s.userId))
     s.avatar = tostring(res.data.pic or "")
+    s.vipType = tonumber(res.data.vip_type or 0)
     transport.setSession(s)
     return account.session()
   end

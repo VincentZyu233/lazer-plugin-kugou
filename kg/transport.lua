@@ -13,6 +13,22 @@ function transport.getSession()
     local ok, res = pcall(function() return host.json_decode(stored) end)
     if ok and type(res) == "table" then
       currentSession = res
+      local needSave = false
+      if not currentSession.installGuid or currentSession.installGuid == "" then
+        currentSession.installGuid = crypto.random_hex(32):lower()
+        needSave = true
+      end
+      if not currentSession.installMac or currentSession.installMac == "" then
+        currentSession.installMac = crypto.random_hex(32):lower()
+        needSave = true
+      end
+      if not currentSession.installDev or currentSession.installDev == "" then
+        currentSession.installDev = crypto.random_string(16)
+        needSave = true
+      end
+      if needSave then
+        transport.setSession(currentSession)
+      end
       return currentSession
     end
   end
@@ -23,8 +39,12 @@ function transport.getSession()
     mid = config.defaultMid,
     userName = "",
     avatar = "",
-    vipType = 0
+    vipType = 0,
+    installGuid = crypto.random_hex(32):lower(),
+    installMac = crypto.random_hex(32):lower(),
+    installDev = crypto.random_string(16)
   }
+  transport.setSession(currentSession)
   return currentSession
 end
 

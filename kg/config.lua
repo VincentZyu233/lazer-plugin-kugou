@@ -29,8 +29,17 @@ local config = {
   gatewayHost = "gateway.kugou.com",
   trackHost = "track.kugou.com",
   loginHost = "login-user.kugou.com",
+  loginRetryHost = "loginserviceretry.kugou.com",
+  loginRouter = "login.user.kugou.com",
   mobileHost = "m.kugou.com",
-  searchHost = "complexsearch.kugou.com"
+  searchHost = "complexsearch.kugou.com",
+
+  -- Lite 移动端混合加密参数 (短信验证码登录与 Token 刷新专用)
+  liteT1Key = "5e4ef500e9597fe004bd09a46d8add98",
+  liteT1Iv = "04bd09a46d8add98",
+  liteT2Key = "fd14b35e3f81af3817a20ae7adae7020",
+  liteT2Iv = "17a20ae7adae7020",
+  t2FixedHash = "0f607264fc6318a92b9e13c65db7cd3c"
 }
 
 return config

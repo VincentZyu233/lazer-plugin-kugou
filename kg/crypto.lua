@@ -112,4 +112,78 @@ function crypto.calc_login_key(timeMs)
   return crypto.md5(raw)
 end
 
+-- 生成随机 ASCII 字符串
+function crypto.random_string(len)
+  len = len or 16
+  local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+  local res = {}
+  local seed = host.now()
+  math.randomseed(seed)
+  for i = 1, len do
+    local idx = math.random(1, #chars)
+    table.insert(res, string.sub(chars, idx, idx))
+  end
+  return table.concat(res)
+end
+
+-- 生成随机 Hex 字符串 (例如 32 位 GUID / Mac)
+function crypto.random_hex(len)
+  len = len or 32
+  local chars = "0123456789abcdef"
+  local res = {}
+  local seed = host.now()
+  math.randomseed(seed)
+  for i = 1, len do
+    local idx = math.random(1, #chars)
+    table.insert(res, string.sub(chars, idx, idx))
+  end
+  return table.concat(res)
+end
+
+-- 动态 AES-256-CBC 加密 (酷狗移动端 params 加密)
+-- 返回 hexData, tempKey
+function crypto.aes_encrypt_dynamic(data)
+  local tempKey = crypto.random_string(16):lower()
+  local md5Key = crypto.md5(tempKey)
+  local actualKey = md5Key
+  local actualIv = string.sub(md5Key, 17, 32)
+  local hexData = crypto.aes_cbc_encrypt(data, actualKey, actualIv)
+  return hexData, tempKey
+end
+
+-- 动态 AES-256-CBC 解密 (酷狗移动端 secu_params 解密)
+function crypto.aes_decrypt_dynamic(hexData, tempKey)
+  local md5Key = crypto.md5(tempKey)
+  local actualKey = md5Key
+  local actualIv = string.sub(md5Key, 17, 32)
+  return crypto.aes_cbc_decrypt(hexData, actualKey, actualIv)
+end
+
+-- 酷狗移动端专用 pk 参数生成 (RSA 无填充模幂加密转大写)
+function crypto.rsa_encrypt_pk(pkData)
+  local hex = crypto.rsa_encrypt(pkData)
+  return string.upper(hex)
+end
+
+-- 计算 t1 (AES 加密 |clienttime_ms)
+function crypto.calc_t1(timeMs)
+  local raw = "|" .. tostring(timeMs)
+  return crypto.aes_cbc_encrypt(raw, config.liteT1Key, config.liteT1Iv)
+end
+
+-- 计算 t2 (AES 加密 guid|fixedHash|mac|dev|clienttime_ms)
+function crypto.calc_t2(installGuid, installMac, installDev, timeMs)
+  local raw = tostring(installGuid or "") .. "|" .. config.t2FixedHash .. "|" .. tostring(installMac or "") .. "|" .. tostring(installDev or "") .. "|" .. tostring(timeMs)
+  return crypto.aes_cbc_encrypt(raw, config.liteT2Key, config.liteT2Iv)
+end
+
+-- 手机号掩码脱敏 (如 17274961080 -> 17*****0)
+function crypto.mask_mobile(phone)
+  phone = tostring(phone or "")
+  if string.len(phone) >= 11 then
+    return string.sub(phone, 1, 2) .. "*****" .. string.sub(phone, 11, 11)
+  end
+  return phone
+end
+
 return crypto
