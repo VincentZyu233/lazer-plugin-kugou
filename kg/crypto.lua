@@ -48,7 +48,8 @@ end
 -- 字符串转 Hex 字符串
 function crypto.str_to_hex(str)
   local hex = {}
-  for i = 1, #str do
+  local len = string.len(str)
+  for i = 1, len do
     table.insert(hex, string.format("%02x", string.byte(str, i)))
   end
   return table.concat(hex)
@@ -57,8 +58,9 @@ end
 -- RSA 加密 (无填充/原始模幂，尾部以 0x00 字节补齐至 128 字节/256 字符 Hex)
 function crypto.rsa_encrypt(text)
   local hex = crypto.str_to_hex(text)
-  if #hex < 256 then
-    hex = hex .. string.rep("00", math.floor((256 - #hex) / 2))
+  local hexLen = string.len(hex)
+  if hexLen < 256 then
+    hex = hex .. string.rep("00", math.floor((256 - hexLen) / 2))
   end
   return host.crypto({
     operation = "rsa_modpow",
@@ -127,11 +129,12 @@ end
 function crypto.random_dev(len)
   len = len or 16
   local chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  local charsLen = string.len(chars)
   local res = {}
   local seed = host.now()
   math.randomseed(seed)
   for i = 1, len do
-    local idx = math.random(1, #chars)
+    local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))
   end
   return table.concat(res)
@@ -141,11 +144,12 @@ end
 function crypto.random_string(len)
   len = len or 16
   local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+  local charsLen = string.len(chars)
   local res = {}
   local seed = host.now()
   math.randomseed(seed)
   for i = 1, len do
-    local idx = math.random(1, #chars)
+    local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))
   end
   return table.concat(res)
@@ -155,11 +159,12 @@ end
 function crypto.random_hex(len)
   len = len or 32
   local chars = "0123456789abcdef"
+  local charsLen = string.len(chars)
   local res = {}
   local seed = host.now()
   math.randomseed(seed)
   for i = 1, len do
-    local idx = math.random(1, #chars)
+    local idx = math.random(1, charsLen)
     table.insert(res, string.sub(chars, idx, idx))
   end
   return table.concat(res)
