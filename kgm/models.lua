@@ -242,9 +242,17 @@ function models.parseLrc(lrcText)
   for line in string.gmatch(lrcText, "[^\r\n]+") do
     local min, sec, ms, text = string.match(line, "%[(%d+):(%d+)[.](%d+)%](.*)")
     if min and sec and ms then
-      local startMs = tonumber(min) * 60000 + tonumber(sec) * 1000 + tonumber(ms)
+      local msVal = tonumber(ms) or 0
+      local msLen = string.len(ms)
+      if msLen == 2 then
+        msVal = msVal * 10
+      elseif msLen == 1 then
+        msVal = msVal * 100
+      end
+      local startMs = tonumber(min) * 60000 + tonumber(sec) * 1000 + msVal
+      local cleanText = text:match("^%s*(.-)%s*$") or ""
       table.insert(lines, {
-        text = text:match("^%s*(.-)%s*$") or "",
+        text = cleanText,
         startMs = startMs
       })
     end

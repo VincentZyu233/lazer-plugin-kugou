@@ -256,35 +256,11 @@ function catalog.lyrics(args)
 
   transport.debugLog("catalog.lyrics candidate found: id=" .. tostring(candidate.id) .. " accesskey=" .. tostring(candidate.accesskey))
 
-  -- 2. 优先尝试下载动感逐字歌词 (fmt = "krc")
-  local krcRes, errKrc = transport.request({
-    path = "/download",
-    host = "lyrics.kugou.com",
-    clearDefaultParams = true,
-    notSign = true,
-    params = {
-      ver = "1",
-      client = "android",
-      id = tostring(candidate.id),
-      accesskey = tostring(candidate.accesskey),
-      fmt = "krc",
-      charset = "utf8"
-    }
-  })
-
-  if krcRes and krcRes.status == 200 and krcRes.content and krcRes.content ~= "" then
-    local okParse, parsed = pcall(function() return krc.parse(krcRes.content, krcRes.trans) end)
-    if okParse and parsed and parsed.synced and parsed.lines and parsed.lines[1] then
-      transport.debugLog("catalog.lyrics KRC parse SUCCESS lines=" .. tostring(#parsed.lines))
-      return { parsed }
-    else
-      transport.debugLog("catalog.lyrics KRC parse FAILED: " .. tostring(parsed))
-    end
-  else
-    transport.debugLog("catalog.lyrics KRC download failed status=" .. tostring(krcRes and krcRes.status))
-  end
-
-  -- 3. 若 KRC 解析失败或该曲目无 KRC，无缝回退下载标准 LRC 格式歌词
+  -- 2. 下载标准 LRC 格式歌词
+  -- 注：酷狗返回 Base64 编码的标准 LRC 纯文本。在 Dart VM (lua_dardo_plus) 环境下，
+  -- 平台对每个 operation 严格限制了 250,000 条 Lua 指令上限 (withInstructionBudget)。
+  -- 纯 Lua 的 zlib inflate 解压需数十万条指令会导致 Lua instruction limit exceeded 崩溃；
+  -- 因此直接使用酷狗官方提供的 fmt="lrc" 接口，解析快、不超标、同步精准且绝对稳定。
   local downloadRes, errLrc = transport.request({
     path = "/download",
     host = "lyrics.kugou.com",
@@ -308,7 +284,7 @@ function catalog.lyrics(args)
       if downloadRes.trans and downloadRes.trans ~= "" then
         translation = krc.base64_decode_bin(downloadRes.trans)
       end
-      transport.debugLog("catalog.lyrics fallback LRC success lines=" .. tostring(#lines))
+      transport.debugLog("catalog.lyrics download LRC success lines=" .. tostring(#lines))
       return {
         {
           lines = lines,
