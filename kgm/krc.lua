@@ -52,7 +52,7 @@ local CHUNK_SIZE = 4096
 
 local function generateCrc32(input)
     local crc = -1
-    for i = 1, #input do
+    for i = 1, string.len(input) do
         local c = byte(input, i)
         crc = bxor(CRC32[bxor(c, band(crc, 255))], rshift(crc, 8))
     end
@@ -261,14 +261,14 @@ function inflate.new(buffer)
     local EOCD
     local pos = 1
     repeat
-        local i, j = find(buffer, 'PK\5\6', pos, true)
+        local i, j = find(buffer, 'PK\x05\x06', pos, true)
         if i then
             EOCD = i
             pos = j + 1
         end
     until not i
     if EOCD then
-        buffer = sub(buffer, 1, EOCD + 19)..'\0\0'
+        buffer = sub(buffer, 1, EOCD + 19)..'\x00\x00'
     end
     local object = {buffer = buffer, position = 0, bits = 0, count = 0}
     return setmetatable(object, BitStream)
@@ -283,7 +283,7 @@ end
 ---@return fun(): name: string?, offset: integer?, size: integer?, packed: boolean?, crc: integer?
 function BitStream:files()
     local buffer = self.buffer
-    local position = int4le(buffer, #buffer - 5) + 1
+    local position = int4le(buffer, string.len(buffer) - 5) + 1
     return function()
         if int4le(buffer, position) ~= 33639248 then
             return
@@ -350,7 +350,7 @@ local concat = table.concat
 
 local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local b64lookup = {}
-for i = 1, #b64chars do b64lookup[byte(b64chars, i)] = i - 1 end
+for i = 1, string.len(b64chars) do b64lookup[byte(b64chars, i)] = i - 1 end
 b64lookup[byte('-')] = 62
 b64lookup[byte('_')] = 63
 
@@ -358,7 +358,7 @@ function krc.base64_decode_bin(str)
   if not str or str == "" then return "" end
   local t = {}
   local buf, bits = 0, 0
-  local len = #str
+  local len = string.len(str)
   for i = 1, len do
     local c = byte(str, i)
     local val = b64lookup[c]
@@ -367,7 +367,7 @@ function krc.base64_decode_bin(str)
       bits = bits + 6
       if bits >= 8 then
         bits = bits - 8
-        t[#t + 1] = char((buf >> bits) & 0xFF)
+        t[#t + 1] = char((buf >> bits) & 255)
       end
     end
   end
@@ -393,14 +393,14 @@ function krc.parse(base64Content, rawTrans)
   if not base64Content or base64Content == "" then return nil end
 
   local rawBin = krc.base64_decode_bin(base64Content)
-  if #rawBin <= 4 then return nil end
+  if string.len(rawBin) <= 4 then return nil end
 
   -- XOR 解密 (跳过前 4 字节魔数)
   local xorChars = {}
-  local rawLen = #rawBin
+  local rawLen = string.len(rawBin)
   for i = 5, rawLen do
     local k = KRC_KEY[((i - 5) % 16) + 1]
-    xorChars[#xorChars + 1] = char(byte(rawBin, i) ~ k)
+    xorChars[#xorChars + 1] = char(bxor(byte(rawBin, i), k))
   end
   local xorStr = concat(xorChars)
 
