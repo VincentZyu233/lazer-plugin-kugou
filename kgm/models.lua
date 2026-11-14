@@ -240,21 +240,50 @@ function models.parseLrc(lrcText)
   local lines = {}
 
   for line in string.gmatch(lrcText, "[^\r\n]+") do
-    local min, sec, ms, text = string.match(line, "%[(%d+):(%d+)[.](%d+)%](.*)")
-    if min and sec and ms then
-      local msVal = tonumber(ms) or 0
-      local msLen = string.len(ms)
-      if msLen == 2 then
-        msVal = msVal * 10
-      elseif msLen == 1 then
-        msVal = msVal * 100
+    if string.sub(line, 1, 1) == "[" then
+      local rightBracket = string.find(line, "]", 2, true)
+      if rightBracket then
+        local timePart = string.sub(line, 2, rightBracket - 1)
+        local colonPos = string.find(timePart, ":", 1, true)
+        if colonPos then
+          local minStr = string.sub(timePart, 1, colonPos - 1)
+          local min = tonumber(minStr)
+          if min then
+            local rest = string.sub(timePart, colonPos + 1)
+            local dotPos = string.find(rest, ".", 1, true) or string.find(rest, ":", 1, true)
+            local sec, ms = 0, 0
+            if dotPos then
+              sec = tonumber(string.sub(rest, 1, dotPos - 1)) or 0
+              local msStr = string.sub(rest, dotPos + 1)
+              local msVal = tonumber(msStr) or 0
+              local msLen = string.len(msStr)
+              if msLen == 2 then
+                msVal = msVal * 10
+              elseif msLen == 1 then
+                msVal = msVal * 100
+              end
+              ms = msVal
+            else
+              sec = tonumber(rest) or 0
+            end
+            local startMs = min * 60000 + sec * 1000 + ms
+            local text = string.sub(line, rightBracket + 1)
+            local firstNonSpace = 1
+            local lastNonSpace = string.len(text)
+            while firstNonSpace <= lastNonSpace and string.byte(text, firstNonSpace) <= 32 do
+              firstNonSpace = firstNonSpace + 1
+            end
+            while lastNonSpace >= firstNonSpace and string.byte(text, lastNonSpace) <= 32 do
+              lastNonSpace = lastNonSpace - 1
+            end
+            local cleanText = string.sub(text, firstNonSpace, lastNonSpace)
+            table.insert(lines, {
+              text = cleanText,
+              startMs = startMs
+            })
+          end
+        end
       end
-      local startMs = tonumber(min) * 60000 + tonumber(sec) * 1000 + msVal
-      local cleanText = text:match("^%s*(.-)%s*$") or ""
-      table.insert(lines, {
-        text = cleanText,
-        startMs = startMs
-      })
     end
   end
 
