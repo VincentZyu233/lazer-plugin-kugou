@@ -206,51 +206,62 @@ end
 -- 获取动感逐字歌词 (KRC) 与双语翻译
 function catalog.lyrics(args)
   local hash = tostring(args and args.id or ""):lower()
+  transport.debugLog("catalog.lyrics START hash=" .. tostring(hash))
   if hash == "" then return {} end
 
-  -- 1. 检索歌词 candidate (优先新接口，失败则自动回退老接口 /search)
-  local searchRes, err = transport.request({
-    path = "/v1/search",
+  -- 1. 检索歌词 candidate (优先最稳定兼容全曲目的 /search 接口)
+  local candidate = nil
+  local legacyRes, errLegacy = transport.request({
+    path = "/search",
     host = "lyrics.kugou.com",
+    clearDefaultParams = true,
+    notSign = true,
     params = {
-      hash = hash,
-      album_audio_id = "0",
-      lrctxt = "1",
-      man = "no",
-      duration = "0"
+      ver = "1",
+      man = "yes",
+      client = "pc",
+      duration = "0",
+      hash = hash
     }
   })
 
-  local candidate = nil
-  if searchRes and searchRes.candidates and #searchRes.candidates > 0 then
-    candidate = searchRes.candidates[1]
+  if legacyRes and legacyRes.candidates and type(legacyRes.candidates) == "table" and legacyRes.candidates[1] then
+    candidate = legacyRes.candidates[1]
   end
 
+  -- 回退尝试 /v1/search
   if not candidate or not candidate.id or not candidate.accesskey then
-    local legacyRes, _ = transport.request({
-      path = "/search",
+    local searchRes, errV1 = transport.request({
+      path = "/v1/search",
       host = "lyrics.kugou.com",
+      clearDefaultParams = true,
+      notSign = true,
       params = {
-        ver = "1",
-        man = "yes",
-        client = "pc",
-        duration = "0",
-        hash = hash
+        hash = hash,
+        album_audio_id = "0",
+        lrctxt = "1",
+        man = "no",
+        duration = "0"
       }
     })
-    if legacyRes and legacyRes.candidates and #legacyRes.candidates > 0 then
-      candidate = legacyRes.candidates[1]
+    if searchRes and searchRes.candidates and type(searchRes.candidates) == "table" and searchRes.candidates[1] then
+      candidate = searchRes.candidates[1]
     end
   end
 
   if not candidate or not candidate.id or not candidate.accesskey then
+    transport.debugLog("catalog.lyrics NO candidate for hash=" .. tostring(hash))
     return {}
   end
 
+  transport.debugLog("catalog.lyrics candidate found: id=" .. tostring(candidate.id) .. " accesskey=" .. tostring(candidate.accesskey))
+
   -- 2. 优先尝试下载动感逐字歌词 (fmt = "krc")
-  local krcRes, _ = transport.request({
+  local krcRes, errKrc = transport.request({
     path = "/download",
     host = "lyrics.kugou.com",
+    clearDefaultParams = true,
+    notSign = true,
     params = {
       ver = "1",
       client = "android",
@@ -262,16 +273,23 @@ function catalog.lyrics(args)
   })
 
   if krcRes and krcRes.status == 200 and krcRes.content and krcRes.content ~= "" then
-    local parsed = krc.parse(krcRes.content, krcRes.trans)
-    if parsed and parsed.synced and #parsed.lines > 0 then
+    local okParse, parsed = pcall(function() return krc.parse(krcRes.content, krcRes.trans) end)
+    if okParse and parsed and parsed.synced and parsed.lines and parsed.lines[1] then
+      transport.debugLog("catalog.lyrics KRC parse SUCCESS lines=" .. tostring(#parsed.lines))
       return { parsed }
+    else
+      transport.debugLog("catalog.lyrics KRC parse FAILED: " .. tostring(parsed))
     end
+  else
+    transport.debugLog("catalog.lyrics KRC download failed status=" .. tostring(krcRes and krcRes.status))
   end
 
   -- 3. 若 KRC 解析失败或该曲目无 KRC，无缝回退下载标准 LRC 格式歌词
-  local downloadRes, err2 = transport.request({
+  local downloadRes, errLrc = transport.request({
     path = "/download",
     host = "lyrics.kugou.com",
+    clearDefaultParams = true,
+    notSign = true,
     params = {
       ver = "1",
       client = "android",
@@ -283,24 +301,26 @@ function catalog.lyrics(args)
   })
 
   if downloadRes and downloadRes.status == 200 and downloadRes.content and downloadRes.content ~= "" then
-    local rawLrc = crypto.base64_decode(downloadRes.content)
+    local rawLrc = krc.base64_decode_bin(downloadRes.content)
     if rawLrc and rawLrc ~= "" then
       local lines = models.parseLrc(rawLrc)
       local translation = nil
       if downloadRes.trans and downloadRes.trans ~= "" then
-        translation = crypto.base64_decode(downloadRes.trans)
+        translation = krc.base64_decode_bin(downloadRes.trans)
       end
+      transport.debugLog("catalog.lyrics fallback LRC success lines=" .. tostring(#lines))
       return {
         {
           lines = lines,
           lrc = rawLrc,
           translation = translation,
-          synced = #lines > 0
+          synced = (lines and lines[1]) and true or false
         }
       }
     end
   end
 
+  transport.debugLog("catalog.lyrics finished with EMPTY result")
   return {}
 end
 

@@ -424,8 +424,9 @@ function krc.parse(base64Content, rawTrans)
   local plainLrcLines = {}
   local plainCount = 0
   local embeddedTransLines = {}
+  local rawTransCount = 0
+  local transLines = {}
   local transCount = 0
-  local translation = nil
 
   -- 纯字符串快速过滤 XML/KRC 标签，提取干净歌词文本
   local function stripTags(str)
@@ -459,8 +460,8 @@ function krc.parse(base64Content, rawTrans)
             if sec.lyricContent and type(sec.lyricContent) == "table" then
               for _, item in ipairs(sec.lyricContent) do
                 local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
-                transCount = transCount + 1
-                embeddedTransLines[transCount] = tStr
+                rawTransCount = rawTransCount + 1
+                embeddedTransLines[rawTransCount] = tStr
               end
               break
             end
@@ -506,12 +507,12 @@ function krc.parse(base64Content, rawTrans)
             plainCount = plainCount + 1
             plainLrcLines[plainCount] = format_lrc_time(startMs) .. cleanText
 
-            -- 对齐翻译歌词
-            if transCount >= linesCount then
+            -- 对齐翻译歌词 (严密连续数组，杜绝 table.concat 稀疏洞异常)
+            if rawTransCount >= linesCount then
               local transText = embeddedTransLines[linesCount] or ""
               if transText ~= "" then
-                translation = translation or {}
-                translation[linesCount] = format_lrc_time(startMs) .. transText
+                transCount = transCount + 1
+                transLines[transCount] = format_lrc_time(startMs) .. transText
               end
             end
           end
@@ -528,8 +529,8 @@ function krc.parse(base64Content, rawTrans)
       finalTranslation = decodedTrans
     end
   end
-  if not finalTranslation and translation and linesCount > 0 and transCount > 0 then
-    finalTranslation = concat(translation, "\n")
+  if not finalTranslation and transCount > 0 then
+    finalTranslation = concat(transLines, "\n")
   end
 
   local fullYrc = concat(yrcLines, "\n")

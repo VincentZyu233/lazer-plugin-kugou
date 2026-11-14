@@ -69,7 +69,13 @@ function plugin.call(operation, args)
   elseif operation == "stream" then
     return catalog.stream(args)
   elseif operation == "lyrics" then
-    return catalog.lyrics(args)
+    local ok, res = pcall(function() return catalog.lyrics(args) end)
+    if not ok then
+      local transport = require("kgm.transport")
+      transport.debugLog("FATAL lyrics crash: " .. tostring(res))
+      return {}
+    end
+    return res
   elseif operation == "comments" then
     return catalog.comments(args)
   elseif operation == "playlist" then
