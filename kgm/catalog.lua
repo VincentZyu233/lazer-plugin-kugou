@@ -304,9 +304,6 @@ function catalog.lyrics(args)
   return {}
 end
 
--- 内存缓存 hash -> mixsongid (或 album_audio_id)
-local songIdCache = {}
-
 -- 歌曲评论区获取
 function catalog.comments(args)
   local songId = tostring(args and args.id or "")
@@ -314,20 +311,38 @@ function catalog.comments(args)
     return { total = 0, hasMore = false, hot = {}, latest = {} }
   end
 
-  local limit = tonumber(args and args.limit or 20)
-  local offset = tonumber(args and args.offset or 0)
+  local limit = tonumber(args and args.limit or 20) or 20
+  local offset = tonumber(args and args.offset or 0) or 0
   local page = math.floor(offset / limit) + 1
 
-  -- 1. 解析 mixsongid (若传入的是 32 位 hex hash，先查缓存或拉取歌曲详情)
+  -- 1. 解析 mixsongid (若传入的是 32 位 hex hash，先查缓存，未命中则请求 /v2/get_res_privilege/lite 查询真实 album_audio_id)
   local mixsongid = songId
-  if #songId == 32 and songId:match("^[0-9a-fA-F]+$") then
-    if songIdCache[songId] then
-      mixsongid = songIdCache[songId]
+  local sLen = string.len(songId)
+  if sLen == 32 then
+    local cached = models.getAudioId(songId)
+    if cached then
+      mixsongid = cached
     else
-      local track = catalog.song({ id = songId })
-      if track and track.raw and (track.raw.album_audio_id or track.raw.audio_id or track.raw.mixsongid) then
-        mixsongid = tostring(track.raw.album_audio_id or track.raw.audio_id or track.raw.mixsongid)
-        songIdCache[songId] = mixsongid
+      -- 动态通过歌曲 hash 查真实 album_audio_id
+      local privRes = transport.request({
+        method = "POST",
+        path = "/v2/get_res_privilege/lite",
+        official = true,
+        router = "media.store.kugou.com",
+        body = {
+          appid = 1005,
+          area_code = 1,
+          behavior = "play",
+          clientver = 20489,
+          need_hash_offset = 1,
+          relate = 1,
+          resource = { { type = "audio", id = 0, hash = songId, album_id = "0" } },
+          vip = 1
+        }
+      })
+      if privRes and privRes.data and privRes.data[1] and privRes.data[1].album_audio_id then
+        mixsongid = tostring(privRes.data[1].album_audio_id)
+        models.cacheAudioId(songId, mixsongid)
       end
     end
   end
@@ -356,21 +371,29 @@ function catalog.comments(args)
   local total = tonumber(res.count or 0) or 0
   local rawList = res.list or {}
   local latest = {}
+  local latestCount = 0
   for _, item in ipairs(rawList) do
     local c = models.comment(item)
-    if c then table.insert(latest, c) end
+    if c then
+      latestCount = latestCount + 1
+      latest[latestCount] = c
+    end
   end
 
   local hot = {}
+  local hotCount = 0
   local rawHot = res.weight_list or {}
   if type(rawHot) == "table" and page == 1 then
     for _, item in ipairs(rawHot) do
       local c = models.comment(item)
-      if c then table.insert(hot, c) end
+      if c then
+        hotCount = hotCount + 1
+        hot[hotCount] = c
+      end
     end
   end
 
-  local hasMore = (offset + #latest) < total
+  local hasMore = (offset + latestCount) < total
 
   return {
     total = total,

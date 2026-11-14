@@ -1,11 +1,31 @@
 local models = {}
 
+-- 内存缓存 hash -> album_audio_id
+models.songIdCache = {}
+
+function models.cacheAudioId(hash, audioId)
+  if hash and hash ~= "" and audioId and tostring(audioId) ~= "" and tostring(audioId) ~= "0" then
+    models.songIdCache[string.lower(tostring(hash))] = tostring(audioId)
+  end
+end
+
+function models.getAudioId(hash)
+  if not hash or hash == "" then return nil end
+  return models.songIdCache[string.lower(tostring(hash))]
+end
+
 -- 歌曲实体转换
 function models.song(raw)
   if not raw or type(raw) ~= "table" then return nil end
 
   local hash = raw.FileHash or raw.hash or raw.AudioHash or raw.HQFileHash or raw.SQFileHash or raw.hash_128 or raw.hash_320 or raw.hash_flac or ""
   if not hash or hash == "" then return nil end
+
+  -- 记录 album_audio_id 映射
+  local audioId = raw.album_audio_id or raw.AlbumAudioId or raw.audio_id or raw.Audioid or raw.mixsongid or raw.MixSongID
+  if audioId and tostring(audioId) ~= "0" and tostring(audioId) ~= "" then
+    models.cacheAudioId(hash, audioId)
+  end
 
   local songName = raw.SongName or raw.songname or raw.OriSongName or raw.audio_name or ""
   local singerName = raw.SingerName or raw.singername or raw.author_name or ""

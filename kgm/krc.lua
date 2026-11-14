@@ -345,8 +345,10 @@ return inflate
 end)()
 
 -- 2. Base64 二进制解码器
-local byte, char, sub = string.byte, string.char, string.sub
+local byte, char, sub, find = string.byte, string.char, string.sub, string.find
 local concat = table.concat
+local format = string.format
+local bxor = function(a, b) return (bit32 and bit32.bxor and bit32.bxor(a, b)) or (a ~ b) end
 
 local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local b64lookup = {}
@@ -357,6 +359,7 @@ b64lookup[byte('_')] = 63
 function krc.base64_decode_bin(str)
   if not str or str == "" then return "" end
   local t = {}
+  local tIdx = 0
   local buf, bits = 0, 0
   local len = string.len(str)
   for i = 1, len do
@@ -367,7 +370,8 @@ function krc.base64_decode_bin(str)
       bits = bits + 6
       if bits >= 8 then
         bits = bits - 8
-        t[#t + 1] = char((buf >> bits) & 255)
+        tIdx = tIdx + 1
+        t[tIdx] = char((buf >> bits) & 255)
       end
     end
   end
@@ -398,9 +402,11 @@ function krc.parse(base64Content, rawTrans)
   -- XOR 解密 (跳过前 4 字节魔数)
   local xorChars = {}
   local rawLen = string.len(rawBin)
+  local xorIdx = 0
   for i = 5, rawLen do
     local k = KRC_KEY[((i - 5) % 16) + 1]
-    xorChars[#xorChars + 1] = char(bxor(byte(rawBin, i), k))
+    xorIdx = xorIdx + 1
+    xorChars[xorIdx] = char(bxor(byte(rawBin, i), k))
   end
   local xorStr = concat(xorChars)
 
@@ -412,16 +418,39 @@ function krc.parse(base64Content, rawTrans)
   end
 
   local lines = {}
+  local linesCount = 0
   local yrcLines = {}
+  local yrcCount = 0
   local plainLrcLines = {}
+  local plainCount = 0
   local embeddedTransLines = {}
+  local transCount = 0
   local translation = nil
 
+  -- 纯字符串快速过滤 XML/KRC 标签，提取干净歌词文本
+  local function stripTags(str)
+    local out = {}
+    local outIdx = 0
+    local inTag = false
+    local len = string.len(str)
+    for i = 1, len do
+      local c = sub(str, i, i)
+      if c == "<" then
+        inTag = true
+      elseif c == ">" then
+        inTag = false
+      elseif not inTag then
+        outIdx = outIdx + 1
+        out[outIdx] = c
+      end
+    end
+    return concat(out)
+  end
+
   -- 1. 解析内嵌的 [language:Base64]
-  for line in text:gmatch("[^\n]+") do
-    local l = line:gsub("[\r\n]", "")
-    if l:sub(1, 10) == "[language:" then
-      local b64Payload = l:sub(11, -2)
+  for line in text:gmatch("[^\r\n]+") do
+    if sub(line, 1, 10) == "[language:" then
+      local b64Payload = sub(line, 11, -2)
       local jsonStr = krc.base64_decode_bin(b64Payload)
       if jsonStr and jsonStr ~= "" and host and host.json_decode then
         local okJson, langData = pcall(host.json_decode, jsonStr)
@@ -430,7 +459,8 @@ function krc.parse(base64Content, rawTrans)
             if sec.lyricContent and type(sec.lyricContent) == "table" then
               for _, item in ipairs(sec.lyricContent) do
                 local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
-                embeddedTransLines[#embeddedTransLines + 1] = tStr
+                transCount = transCount + 1
+                embeddedTransLines[transCount] = tStr
               end
               break
             end
@@ -441,39 +471,50 @@ function krc.parse(base64Content, rawTrans)
     end
   end
 
-  -- 2. 解析逐行歌词与逐字数据
-  local lineIdx = 0
-  for rawLine in text:gmatch("[^\n]+") do
-    local rl = rawLine:gsub("[\r\n]", "")
-    local startMsStr, durMsStr, contentPart = rl:match("^%[(%d+),(%d+)%](.*)$")
-    if startMsStr and durMsStr and contentPart then
-      lineIdx = lineIdx + 1
-      local startMs = tonumber(startMsStr) or 0
-      local durMs = tonumber(durMsStr) or 0
+  -- 2. 解析逐行歌词与逐字数据 (纯字符查找，避开 Dart RegExp 引擎缺陷)
+  for rawLine in text:gmatch("[^\r\n]+") do
+    if sub(rawLine, 1, 1) == "[" then
+      local commaPos = find(rawLine, ",", 2, true)
+      if commaPos then
+        local bracketPos = find(rawLine, "]", commaPos + 1, true)
+        if bracketPos then
+          local startMsStr = sub(rawLine, 2, commaPos - 1)
+          local durMsStr = sub(rawLine, commaPos + 1, bracketPos - 1)
+          local startMs = tonumber(startMsStr)
+          local durMs = tonumber(durMsStr)
 
-      -- 提取纯文本
-      local cleanText = contentPart:gsub("<%d+,%d+,%d+>", "")
+          if startMs and durMs then
+            linesCount = linesCount + 1
+            local contentPart = sub(rawLine, bracketPos + 1)
 
-      -- 转换为 Lazer 原生识别的 YRC 逐字格式 (将 < 替换为 (, > 替换为 ))
-      local yrcContent = contentPart:gsub("<", "("):gsub(">", ")")
-      local yrcLine = string.format("[%d,%d]%s", startMs, durMs, yrcContent)
-      yrcLines[#yrcLines + 1] = yrcLine
+            -- 提取纯文本
+            local cleanText = stripTags(contentPart)
 
-      -- 普通行时间戳
-      lines[#lines + 1] = {
-        startMs = startMs,
-        text = cleanText
-      }
+            -- 转换为 Lazer 原生识别的 YRC 逐字格式 (将 < 替换为 (, > 替换为 ))
+            local yrcContent = contentPart:gsub("<", "("):gsub(">", ")")
+            local yrcLine = string.format("[%d,%d]%s", startMs, durMs, yrcContent)
+            yrcCount = yrcCount + 1
+            yrcLines[yrcCount] = yrcLine
 
-      -- 标准 LRC 格式
-      plainLrcLines[#plainLrcLines + 1] = format_lrc_time(startMs) .. cleanText
+            -- 普通行时间戳
+            lines[linesCount] = {
+              startMs = startMs,
+              text = cleanText
+            }
 
-      -- 对齐翻译歌词
-      if #embeddedTransLines >= lineIdx then
-        local transText = embeddedTransLines[lineIdx] or ""
-        if transText:match("%S") then
-          translation = translation or {}
-          translation[#translation + 1] = format_lrc_time(startMs) .. transText
+            -- 标准 LRC 格式
+            plainCount = plainCount + 1
+            plainLrcLines[plainCount] = format_lrc_time(startMs) .. cleanText
+
+            -- 对齐翻译歌词
+            if transCount >= linesCount then
+              local transText = embeddedTransLines[linesCount] or ""
+              if transText ~= "" then
+                translation = translation or {}
+                translation[linesCount] = format_lrc_time(startMs) .. transText
+              end
+            end
+          end
         end
       end
     end
@@ -487,7 +528,7 @@ function krc.parse(base64Content, rawTrans)
       finalTranslation = decodedTrans
     end
   end
-  if not finalTranslation and translation and #translation > 0 then
+  if not finalTranslation and translation and linesCount > 0 and transCount > 0 then
     finalTranslation = concat(translation, "\n")
   end
 
@@ -499,7 +540,7 @@ function krc.parse(base64Content, rawTrans)
     wordByWord = fullYrc,
     lrc = fullLrc,
     translation = finalTranslation,
-    synced = #lines > 0
+    synced = linesCount > 0
   }
 end
 
