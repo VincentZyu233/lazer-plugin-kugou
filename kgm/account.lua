@@ -1,6 +1,6 @@
-local config = require("kg.config")
-local transport = require("kg.transport")
-local crypto = require("kg.crypto")
+local config = require("kgm.config")
+local transport = require("kgm.transport")
+local crypto = require("kgm.crypto")
 
 local account = {}
 

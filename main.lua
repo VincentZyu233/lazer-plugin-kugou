@@ -1,6 +1,6 @@
-local account = require("kg.account")
-local catalog = require("kg.catalog")
-local discover = require("kg.discover")
+local account = require("kgm.account")
+local catalog = require("kgm.catalog")
+local discover = require("kgm.discover")
 
 local plugin = {}
 
@@ -22,7 +22,8 @@ function plugin.call(operation, args)
             "favorites",
             "homeFeed",
             "radio",
-            "recommendations"
+            "recommendations",
+            "comments"
           },
           loginHint = "使用酷狗音乐 App 扫码登录或手机验证码登录",
           cookieHint = "支持扫码与验证码授权"
@@ -45,7 +46,7 @@ function plugin.call(operation, args)
   elseif operation == "sendCaptcha" then
     local ok, res = pcall(function() return account.sendCaptcha(args) end)
     if not ok then
-      local transport = require("kg.transport")
+      local transport = require("kgm.transport")
       transport.debugLog("FATAL sendCaptcha: " .. tostring(res))
       return { error = { code = 500, message = tostring(res) } }
     end
@@ -53,20 +54,24 @@ function plugin.call(operation, args)
   elseif operation == "loginCaptcha" then
     local ok, res = pcall(function() return account.loginCaptcha(args) end)
     if not ok then
-      local transport = require("kg.transport")
+      local transport = require("kgm.transport")
       transport.debugLog("FATAL loginCaptcha: " .. tostring(res))
       return nil
     end
     return res
   end
 
-  -- 3. 搜索与音频流、歌词
+  -- 3. 搜索与音频流、歌词、评论
   if operation == "search" then
     return catalog.search(args)
+  elseif operation == "song" then
+    return catalog.song(args)
   elseif operation == "stream" then
     return catalog.stream(args)
   elseif operation == "lyrics" then
     return catalog.lyrics(args)
+  elseif operation == "comments" then
+    return catalog.comments(args)
   elseif operation == "playlist" then
     return catalog.playlist(args)
   elseif operation == "playlistSongs" then

@@ -1,5 +1,5 @@
-local config = require("kg.config")
-local crypto = require("kg.crypto")
+local config = require("kgm.config")
+local crypto = require("kgm.crypto")
 
 local transport = {}
 

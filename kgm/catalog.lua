@@ -1,8 +1,9 @@
-local config = require("kg.config")
-local crypto = require("kg.crypto")
-local transport = require("kg.transport")
-local models = require("kg.models")
-local discover = require("kg.discover")
+local config = require("kgm.config")
+local crypto = require("kgm.crypto")
+local transport = require("kgm.transport")
+local models = require("kgm.models")
+local discover = require("kgm.discover")
+local krc = require("kgm.krc")
 
 local catalog = {}
 
@@ -202,11 +203,12 @@ function catalog.stream(args)
 end
 
 -- 获取歌词
+-- 获取动感逐字歌词 (KRC) 与双语翻译
 function catalog.lyrics(args)
   local hash = tostring(args and args.id or ""):lower()
   if hash == "" then return {} end
 
-  -- 1. 检索歌词 candidate
+  -- 1. 检索歌词 candidate (优先新接口，失败则自动回退老接口 /search)
   local searchRes, err = transport.request({
     path = "/v1/search",
     host = "lyrics.kugou.com",
@@ -225,10 +227,48 @@ function catalog.lyrics(args)
   end
 
   if not candidate or not candidate.id or not candidate.accesskey then
+    local legacyRes, _ = transport.request({
+      path = "/search",
+      host = "lyrics.kugou.com",
+      params = {
+        ver = "1",
+        man = "yes",
+        client = "pc",
+        duration = "0",
+        hash = hash
+      }
+    })
+    if legacyRes and legacyRes.candidates and #legacyRes.candidates > 0 then
+      candidate = legacyRes.candidates[1]
+    end
+  end
+
+  if not candidate or not candidate.id or not candidate.accesskey then
     return {}
   end
 
-  -- 2. 下载 LRC 格式歌词 (Base64)
+  -- 2. 优先尝试下载动感逐字歌词 (fmt = "krc")
+  local krcRes, _ = transport.request({
+    path = "/download",
+    host = "lyrics.kugou.com",
+    params = {
+      ver = "1",
+      client = "android",
+      id = tostring(candidate.id),
+      accesskey = tostring(candidate.accesskey),
+      fmt = "krc",
+      charset = "utf8"
+    }
+  })
+
+  if krcRes and krcRes.status == 200 and krcRes.content and krcRes.content ~= "" then
+    local parsed = krc.parse(krcRes.content, krcRes.trans)
+    if parsed and parsed.synced and #parsed.lines > 0 then
+      return { parsed }
+    end
+  end
+
+  -- 3. 若 KRC 解析失败或该曲目无 KRC，无缝回退下载标准 LRC 格式歌词
   local downloadRes, err2 = transport.request({
     path = "/download",
     host = "lyrics.kugou.com",
@@ -246,10 +286,15 @@ function catalog.lyrics(args)
     local rawLrc = crypto.base64_decode(downloadRes.content)
     if rawLrc and rawLrc ~= "" then
       local lines = models.parseLrc(rawLrc)
+      local translation = nil
+      if downloadRes.trans and downloadRes.trans ~= "" then
+        translation = crypto.base64_decode(downloadRes.trans)
+      end
       return {
         {
           lines = lines,
           lrc = rawLrc,
+          translation = translation,
           synced = #lines > 0
         }
       }
@@ -257,6 +302,82 @@ function catalog.lyrics(args)
   end
 
   return {}
+end
+
+-- 内存缓存 hash -> mixsongid (或 album_audio_id)
+local songIdCache = {}
+
+-- 歌曲评论区获取
+function catalog.comments(args)
+  local songId = tostring(args and args.id or "")
+  if songId == "" then
+    return { total = 0, hasMore = false, hot = {}, latest = {} }
+  end
+
+  local limit = tonumber(args and args.limit or 20)
+  local offset = tonumber(args and args.offset or 0)
+  local page = math.floor(offset / limit) + 1
+
+  -- 1. 解析 mixsongid (若传入的是 32 位 hex hash，先查缓存或拉取歌曲详情)
+  local mixsongid = songId
+  if #songId == 32 and songId:match("^[0-9a-fA-F]+$") then
+    if songIdCache[songId] then
+      mixsongid = songIdCache[songId]
+    else
+      local track = catalog.song({ id = songId })
+      if track and track.raw and (track.raw.album_audio_id or track.raw.audio_id or track.raw.mixsongid) then
+        mixsongid = tostring(track.raw.album_audio_id or track.raw.audio_id or track.raw.mixsongid)
+        songIdCache[songId] = mixsongid
+      end
+    end
+  end
+
+  -- 2. 请求酷狗网关官方评论接口
+  local res, err = transport.request({
+    method = "POST",
+    path = "/mcomment/v1/cmtlist",
+    official = true,
+    params = {
+      mixsongid = mixsongid,
+      need_show_image = "1",
+      p = tostring(page),
+      pagesize = tostring(limit),
+      show_classify = "1",
+      show_hotword_list = "1",
+      extdata = "0",
+      code = "fc4be23b4e972707f36b8a828a93ba8a"
+    }
+  })
+
+  if not res or type(res) ~= "table" then
+    return { total = 0, hasMore = false, hot = {}, latest = {} }
+  end
+
+  local total = tonumber(res.count or 0) or 0
+  local rawList = res.list or {}
+  local latest = {}
+  for _, item in ipairs(rawList) do
+    local c = models.comment(item)
+    if c then table.insert(latest, c) end
+  end
+
+  local hot = {}
+  local rawHot = res.weight_list or {}
+  if type(rawHot) == "table" and page == 1 then
+    for _, item in ipairs(rawHot) do
+      local c = models.comment(item)
+      if c then table.insert(hot, c) end
+    end
+  end
+
+  local hasMore = (offset + #latest) < total
+
+  return {
+    total = total,
+    hasMore = hasMore,
+    hot = hot,
+    latest = latest
+  }
 end
 
 -- 获取歌单详情 (支持私人自建歌单与公共特辑歌单)

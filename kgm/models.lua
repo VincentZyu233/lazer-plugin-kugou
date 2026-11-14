@@ -233,4 +233,60 @@ function models.parseLrc(lrcText)
   return lines
 end
 
+-- 单条评论模型转换 (兼容 Lazer SongComment 格式)
+function models.comment(raw)
+  if not raw or type(raw) ~= "table" then return nil end
+
+  local avatar = raw.user_pic
+  if avatar and type(avatar) == "string" then
+    avatar = avatar:gsub("{size}", "150")
+  end
+
+  local likedCount = 0
+  local liked = false
+  if raw.like and type(raw.like) == "table" then
+    likedCount = tonumber(raw.like.like_num or 0) or 0
+    liked = raw.like.is_like == 1
+  end
+
+  local replies = {}
+  if raw.reply_list and type(raw.reply_list) == "table" then
+    for _, r in ipairs(raw.reply_list) do
+      if r and r.content and r.content ~= "" then
+        table.insert(replies, {
+          author = tostring(r.user_name or ""),
+          content = tostring(r.content or "")
+        })
+      end
+    end
+  end
+
+  local timeMs = 0
+  if raw.addtime then
+    local tStr = tostring(raw.addtime)
+    local y, m, d, h, min, s = tStr:match("(%d+)-(%d+)-(%d+)%s+(%d+):(%d+):(%d+)")
+    if y and m and d and h and min and s then
+      timeMs = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(min), sec = tonumber(s) }) * 1000
+    else
+      local num = tonumber(tStr)
+      if num then
+        timeMs = num > 10000000000 and num or num * 1000
+      end
+    end
+  end
+
+  return {
+    id = tostring(raw.id or ""),
+    content = tostring(raw.content or ""),
+    author = tostring(raw.user_name or "酷狗听众"),
+    authorId = tostring(raw.user_id or ""),
+    avatarUrl = avatar,
+    time = timeMs,
+    location = raw.location and tostring(raw.location) or nil,
+    liked = liked,
+    likedCount = likedCount,
+    replies = replies
+  }
+end
+
 return models

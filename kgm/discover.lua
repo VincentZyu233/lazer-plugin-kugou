@@ -1,7 +1,7 @@
-local config = require("kg.config")
-local crypto = require("kg.crypto")
-local transport = require("kg.transport")
-local models = require("kg.models")
+local config = require("kgm.config")
+local crypto = require("kgm.crypto")
+local transport = require("kgm.transport")
+local models = require("kgm.models")
 
 local discover = {}
 

@@ -1,4 +1,4 @@
-local config = require("kg.config")
+local config = require("kgm.config")
 
 local crypto = {}
 
