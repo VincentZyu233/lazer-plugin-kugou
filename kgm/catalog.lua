@@ -277,12 +277,34 @@ function catalog.lyrics(args)
   })
 
   if downloadRes and downloadRes.status == 200 and downloadRes.content and downloadRes.content ~= "" then
-    local rawLrc = krc.base64_decode_bin(downloadRes.content)
+    local rawLrc = nil
+    if host and host.crypto then
+      local okDec, decStr = pcall(function()
+        return host.crypto({ operation = "base64_decode", input = downloadRes.content })
+      end)
+      if okDec and decStr and decStr ~= "" then
+        rawLrc = decStr
+      end
+    end
+    if not rawLrc or rawLrc == "" then
+      rawLrc = krc.base64_decode_bin(downloadRes.content)
+    end
+
     if rawLrc and rawLrc ~= "" then
       local lines = models.parseLrc(rawLrc)
       local translation = nil
       if downloadRes.trans and downloadRes.trans ~= "" then
-        translation = krc.base64_decode_bin(downloadRes.trans)
+        if host and host.crypto then
+          local okT, decT = pcall(function()
+            return host.crypto({ operation = "base64_decode", input = downloadRes.trans })
+          end)
+          if okT and decT and decT ~= "" then
+            translation = decT
+          end
+        end
+        if not translation or translation == "" then
+          translation = krc.base64_decode_bin(downloadRes.trans)
+        end
       end
       transport.debugLog("catalog.lyrics download LRC success lines=" .. tostring(#lines))
       return {
