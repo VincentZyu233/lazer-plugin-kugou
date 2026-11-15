@@ -558,7 +558,7 @@ function krc.parse(base64Content, rawTrans)
   }
 end
 
---- 解析宿主已经解密好的 KRC 明文字符串为 YRC 逐字动感格式
+--- 解析宿主已经解密好的 KRC 明文字符串为 YRC 逐字动感格式 (纯字符串截取，杜绝嵌入式正则缺陷)
 -- @param text 宿主 krc_decode 解密后的明文字符串
 -- @param rawTrans 可选的酷狗返回的 trans 翻译 Base64 字符串
 -- @return table 包含 lines, wordByWord, lrc, translation, synced
@@ -576,10 +576,31 @@ function krc.parseDecodedText(text, rawTrans)
   local transLines = {}
   local transCount = 0
 
+  -- 纯字符串按行切分
+  local allLines = {}
+  local pos = 1
+  local textLen = #text
+  while pos <= textLen do
+    local nxt = find(text, "\n", pos, true)
+    local line
+    if nxt then
+      line = sub(text, pos, nxt - 1)
+      pos = nxt + 1
+    else
+      line = sub(text, pos)
+      pos = textLen + 1
+    end
+    if #line > 0 and sub(line, -1) == "\r" then
+      line = sub(line, 1, -2)
+    end
+    table.insert(allLines, line)
+  end
+
   -- 1. 解析内嵌的 [language:Base64]
-  for line in text:gmatch("[^\r\n]+") do
+  for _, line in ipairs(allLines) do
     if sub(line, 1, 10) == "[language:" then
-      local b64Payload = sub(line, 11, -2)
+      local rightB = find(line, "]", 11, true)
+      local b64Payload = rightB and sub(line, 11, rightB - 1) or sub(line, 11)
       local jsonStr = nil
       if host and host.crypto then
         local okDec, decStr = pcall(function()
@@ -617,43 +638,89 @@ function krc.parseDecodedText(text, rawTrans)
   end
 
   -- 2. 解析逐行歌词与逐字数据
-  for rawLine in text:gmatch("[^\r\n]+") do
-    local line = string.match(rawLine, "^%s*(.-)%s*$")
-    local startMsStr, durMsStr, rest = string.match(line, "^%[(%d+),(%d+)%](.*)$")
-    if startMsStr and durMsStr and rest and rest ~= "" then
-      local lineStart = tonumber(startMsStr)
-      local lineDur = tonumber(durMsStr)
-      local yrcWords = {}
-      local plainTextParts = {}
+  for _, rawLine in ipairs(allLines) do
+    local lStart, lEnd = 1, #rawLine
+    while lStart <= lEnd and (sub(rawLine, lStart, lStart) == " " or sub(rawLine, lStart, lStart) == "\t") do
+      lStart = lStart + 1
+    end
+    while lEnd >= lStart and (sub(rawLine, lEnd, lEnd) == " " or sub(rawLine, lEnd, lEnd) == "\t") do
+      lEnd = lEnd - 1
+    end
+    local line = sub(rawLine, lStart, lEnd)
 
-      for relStr, wDurStr, flagStr, wText in string.gmatch(rest, "<(%d+),(%d+),(%d+)>([^<]*)") do
-        local rel = tonumber(relStr)
-        local absStart = lineStart + rel
-        table.insert(yrcWords, "(" .. absStart .. "," .. wDurStr .. "," .. flagStr .. ")" .. wText)
-        table.insert(plainTextParts, wText)
-      end
+    if sub(line, 1, 1) == "[" then
+      local commaPos = find(line, ",", 2, true)
+      local bracketPos = commaPos and find(line, "]", commaPos + 1, true)
+      if commaPos and bracketPos then
+        local startMs = tonumber(sub(line, 2, commaPos - 1))
+        local durMs = tonumber(sub(line, commaPos + 1, bracketPos - 1))
+        if startMs and durMs then
+          local rest = sub(line, bracketPos + 1)
+          local yrcWords = {}
+          local plainTextParts = {}
+          local rPos = 1
+          local rLen = #rest
 
-      if #yrcWords > 0 then
-        linesCount = linesCount + 1
-        local fullLineText = table.concat(plainTextParts)
-        local yrcLine = "[" .. lineStart .. "," .. lineDur .. "]" .. table.concat(yrcWords)
-        yrcCount = yrcCount + 1
-        yrcLines[yrcCount] = yrcLine
+          while rPos <= rLen do
+            local ltPos = find(rest, "<", rPos, true)
+            if not ltPos then break end
+            local c1 = find(rest, ",", ltPos + 1, true)
+            local c2 = c1 and find(rest, ",", c1 + 1, true)
+            local gtPos = c2 and find(rest, ">", c2 + 1, true)
+            if not (c1 and c2 and gtPos) then break end
 
-        lines[linesCount] = {
-          startMs = lineStart,
-          text = fullLineText
-        }
+            local relStr = sub(rest, ltPos + 1, c1 - 1)
+            local wDurStr = sub(rest, c1 + 1, c2 - 1)
+            local flagStr = sub(rest, c2 + 1, gtPos - 1)
 
-        plainCount = plainCount + 1
-        plainLrcLines[plainCount] = format_lrc_time(lineStart) .. fullLineText
+            local nextLt = find(rest, "<", gtPos + 1, true)
+            local wText = ""
+            if nextLt then
+              wText = sub(rest, gtPos + 1, nextLt - 1)
+              rPos = nextLt
+            else
+              wText = sub(rest, gtPos + 1)
+              rPos = rLen + 1
+            end
 
-        if rawTransCount >= linesCount then
-          local transText = embeddedTransLines[linesCount] or ""
-          local cleanTrans = string.match(transText, "^%s*(.-)%s*$")
-          if cleanTrans and cleanTrans ~= "" then
-            transCount = transCount + 1
-            transLines[transCount] = format_lrc_time(lineStart) .. cleanTrans
+            local rel = tonumber(relStr)
+            if rel then
+              local absStart = startMs + rel
+              table.insert(yrcWords, "(" .. absStart .. "," .. wDurStr .. "," .. flagStr .. ")" .. wText)
+              table.insert(plainTextParts, wText)
+            end
+          end
+
+          if #yrcWords > 0 then
+            linesCount = linesCount + 1
+            local fullLineText = concat(plainTextParts)
+            local yrcLine = "[" .. startMs .. "," .. durMs .. "]" .. concat(yrcWords)
+            yrcCount = yrcCount + 1
+            yrcLines[yrcCount] = yrcLine
+
+            lines[linesCount] = {
+              startMs = startMs,
+              text = fullLineText
+            }
+
+            plainCount = plainCount + 1
+            plainLrcLines[plainCount] = format_lrc_time(startMs) .. fullLineText
+
+            if rawTransCount >= linesCount then
+              local transText = embeddedTransLines[linesCount] or ""
+              local tS, tE = 1, #transText
+              while tS <= tE and (sub(transText, tS, tS) == " " or sub(transText, tS, tS) == "\t") do
+                tS = tS + 1
+              end
+              while tE >= tS and (sub(transText, tE, tE) == " " or sub(transText, tE, tE) == "\t") do
+                tE = tE - 1
+              end
+              local cleanTrans = sub(transText, tS, tE)
+              if cleanTrans ~= "" then
+                transCount = transCount + 1
+                transLines[transCount] = format_lrc_time(startMs) .. cleanTrans
+              end
+            end
           end
         end
       end

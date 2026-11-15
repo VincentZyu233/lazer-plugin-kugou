@@ -334,8 +334,8 @@ function catalog.lyrics(args)
     if not rawLrc or rawLrc == "" then
       rawLrc = krc.base64_decode_bin(downloadRes.content)
     end
-    if rawLrc then
-      rawLrc = string.gsub(rawLrc, "^[\239\187\191]", "")
+    if rawLrc and #rawLrc >= 3 and string.byte(rawLrc, 1) == 239 and string.byte(rawLrc, 2) == 187 and string.byte(rawLrc, 3) == 191 then
+      rawLrc = string.sub(rawLrc, 4)
     end
 
     if rawLrc and rawLrc ~= "" then
