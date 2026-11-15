@@ -75,14 +75,10 @@ function krc.parseDecodedText(text, rawTrans)
   local plainLrcLines = {}
   local plainCount = 0
   local transSec = nil
-  local romanSec = nil
   local embeddedTransLines = {}
   local rawTransCount = 0
-  local embeddedRomanLines = {}
   local transLines = {}
   local transCount = 0
-  local romanLines = {}
-  local romanCount = 0
 
   -- 纯字符串按行切分
   local allLines = {}
@@ -122,10 +118,8 @@ function krc.parseDecodedText(text, rawTrans)
       if jsonStr and jsonStr ~= "" and host and host.json_decode then
         local okJson, langData = pcall(host.json_decode, jsonStr)
         if okJson and langData and langData.content then
-          -- type=1 是双语翻译，type=0 是罗马音/音译。两者都要，分别对应
-          -- Lazer 的 translation 与 wordTranslation，不能互相兜底顶替。
-          -- lyricContent 的每一项是「字符串数组」（逐字切分），必须整体拼接；
-          -- 只取 item[1] 会丢掉该行除首段外的全部内容。
+          -- type=1 为双语中文翻译。对齐 KugouMusic.NET 默认纯翻译行为，不提取 type=0 罗马音，
+          -- 避免与 Lazer 宿主单副行机制竞态导致中罗穿插混杂。
           local function collect(section)
             local out = {}
             if section and section.lyricContent and type(section.lyricContent) == "table" then
@@ -144,13 +138,11 @@ function krc.parseDecodedText(text, rawTrans)
           for _, sec in ipairs(langData.content) do
             if sec.type == 1 and not transSec then
               transSec = sec
-            elseif sec.type == 0 and not romanSec then
-              romanSec = sec
+              break
             end
           end
           embeddedTransLines = collect(transSec)
           rawTransCount = #embeddedTransLines
-          embeddedRomanLines = collect(romanSec)
         end
       end
       break
@@ -240,21 +232,6 @@ function krc.parseDecodedText(text, rawTrans)
                 transCount = transCount + 1
                 transLines[transCount] = format_lrc_time(startMs) .. cleanTrans
               end
-            end
-
-            -- 罗马音/音译行与原文逐行对齐，供 Lazer 的 wordTranslation 渲染
-            local romanText = embeddedRomanLines[linesCount] or ""
-            local rS, rE = 1, len(romanText)
-            while rS <= rE and (sub(romanText, rS, rS) == " " or sub(romanText, rS, rS) == "\t") do
-              rS = rS + 1
-            end
-            while rE >= rS and (sub(romanText, rE, rE) == " " or sub(romanText, rE, rE) == "\t") do
-              rE = rE - 1
-            end
-            local cleanRoman = sub(romanText, rS, rE)
-            if cleanRoman ~= "" then
-              romanCount = romanCount + 1
-              romanLines[romanCount] = format_lrc_time(startMs) .. cleanRoman
             end
           end
         end
