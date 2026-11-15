@@ -281,14 +281,12 @@ function krc.parseDecodedText(text, rawTrans)
 
   local fullYrc = concat(yrcLines, "\n")
   local fullLrc = concat(plainLrcLines, "\n")
-  local fullRoman = romanCount > 0 and concat(romanLines, "\n") or nil
 
   return {
     lines = lines,
     wordByWord = fullYrc,
     lrc = fullLrc,
     translation = finalTranslation,
-    wordTranslation = fullRoman,
     synced = linesCount > 0
   }
 end
