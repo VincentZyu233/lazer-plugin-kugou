@@ -345,7 +345,7 @@ return inflate
 end)()
 
 -- 2. Base64 二进制解码器
-local byte, char, sub, find = string.byte, string.char, string.sub, string.find
+local byte, char, sub, find, len = string.byte, string.char, string.sub, string.find, string.len
 local concat = table.concat
 local format = string.format
 local bxor = function(a, b) return (bit32 and bit32.bxor and bit32.bxor(a, b)) or (a ~ b) end
@@ -579,7 +579,7 @@ function krc.parseDecodedText(text, rawTrans)
   -- 纯字符串按行切分
   local allLines = {}
   local pos = 1
-  local textLen = #text
+  local textLen = len(text)
   while pos <= textLen do
     local nxt = find(text, "\n", pos, true)
     local line
@@ -590,7 +590,7 @@ function krc.parseDecodedText(text, rawTrans)
       line = sub(text, pos)
       pos = textLen + 1
     end
-    if #line > 0 and sub(line, -1) == "\r" then
+    if len(line) > 0 and sub(line, -1) == "\r" then
       line = sub(line, 1, -2)
     end
     table.insert(allLines, line)
@@ -639,7 +639,7 @@ function krc.parseDecodedText(text, rawTrans)
 
   -- 2. 解析逐行歌词与逐字数据
   for _, rawLine in ipairs(allLines) do
-    local lStart, lEnd = 1, #rawLine
+    local lStart, lEnd = 1, len(rawLine)
     while lStart <= lEnd and (sub(rawLine, lStart, lStart) == " " or sub(rawLine, lStart, lStart) == "\t") do
       lStart = lStart + 1
     end
@@ -659,7 +659,7 @@ function krc.parseDecodedText(text, rawTrans)
           local yrcWords = {}
           local plainTextParts = {}
           local rPos = 1
-          local rLen = #rest
+          local rLen = len(rest)
 
           while rPos <= rLen do
             local ltPos = find(rest, "<", rPos, true)
@@ -708,7 +708,7 @@ function krc.parseDecodedText(text, rawTrans)
 
             if rawTransCount >= linesCount then
               local transText = embeddedTransLines[linesCount] or ""
-              local tS, tE = 1, #transText
+              local tS, tE = 1, len(transText)
               while tS <= tE and (sub(transText, tS, tS) == " " or sub(transText, tS, tS) == "\t") do
                 tS = tS + 1
               end

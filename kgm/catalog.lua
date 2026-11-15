@@ -334,7 +334,7 @@ function catalog.lyrics(args)
     if not rawLrc or rawLrc == "" then
       rawLrc = krc.base64_decode_bin(downloadRes.content)
     end
-    if rawLrc and #rawLrc >= 3 and string.byte(rawLrc, 1) == 239 and string.byte(rawLrc, 2) == 187 and string.byte(rawLrc, 3) == 191 then
+    if rawLrc and string.len(rawLrc) >= 3 and string.byte(rawLrc, 1) == 239 and string.byte(rawLrc, 2) == 187 and string.byte(rawLrc, 3) == 191 then
       rawLrc = string.sub(rawLrc, 4)
     end
 
@@ -367,7 +367,8 @@ function catalog.lyrics(args)
   end
 
   transport.debugLog("catalog.lyrics finished with EMPTY result")
-  return {}
+  -- 避免客户端把空结果永久写盘缓存为 "pureMusic"
+  error("Gateway code 70", 0)
 end
 
 -- 歌曲评论区获取
