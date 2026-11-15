@@ -571,10 +571,15 @@ function krc.parseDecodedText(text, rawTrans)
   local yrcCount = 0
   local plainLrcLines = {}
   local plainCount = 0
+  local transSec = nil
+  local romanSec = nil
   local embeddedTransLines = {}
   local rawTransCount = 0
+  local embeddedRomanLines = {}
   local transLines = {}
   local transCount = 0
+  local romanLines = {}
+  local romanCount = 0
 
   -- 纯字符串按行切分
   local allLines = {}
@@ -614,23 +619,35 @@ function krc.parseDecodedText(text, rawTrans)
       if jsonStr and jsonStr ~= "" and host and host.json_decode then
         local okJson, langData = pcall(host.json_decode, jsonStr)
         if okJson and langData and langData.content then
-          local transSec = nil
+          -- type=1 是双语翻译，type=0 是罗马音/音译。两者都要，分别对应
+          -- Lazer 的 translation 与 wordTranslation，不能互相兜底顶替。
+          -- lyricContent 的每一项是「字符串数组」（逐字切分），必须整体拼接；
+          -- 只取 item[1] 会丢掉该行除首段外的全部内容。
+          local function collect(section)
+            local out = {}
+            if section and section.lyricContent and type(section.lyricContent) == "table" then
+              for _, item in ipairs(section.lyricContent) do
+                if type(item) == "table" then
+                  local parts = {}
+                  for i = 1, #item do parts[i] = tostring(item[i] or "") end
+                  out[#out + 1] = table.concat(parts)
+                else
+                  out[#out + 1] = tostring(item or "")
+                end
+              end
+            end
+            return out
+          end
           for _, sec in ipairs(langData.content) do
-            if sec.type == 1 then
+            if sec.type == 1 and not transSec then
               transSec = sec
-              break
+            elseif sec.type == 0 and not romanSec then
+              romanSec = sec
             end
           end
-          if not transSec and #langData.content > 0 then
-            transSec = langData.content[1]
-          end
-          if transSec and transSec.lyricContent and type(transSec.lyricContent) == "table" then
-            for _, item in ipairs(transSec.lyricContent) do
-              local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
-              rawTransCount = rawTransCount + 1
-              embeddedTransLines[rawTransCount] = tStr
-            end
-          end
+          embeddedTransLines = collect(transSec)
+          rawTransCount = #embeddedTransLines
+          embeddedRomanLines = collect(romanSec)
         end
       end
       break
@@ -721,6 +738,21 @@ function krc.parseDecodedText(text, rawTrans)
                 transLines[transCount] = format_lrc_time(startMs) .. cleanTrans
               end
             end
+
+            -- 罗马音/音译行与原文逐行对齐，供 Lazer 的 wordTranslation 渲染
+            local romanText = embeddedRomanLines[linesCount] or ""
+            local rS, rE = 1, len(romanText)
+            while rS <= rE and (sub(romanText, rS, rS) == " " or sub(romanText, rS, rS) == "\t") do
+              rS = rS + 1
+            end
+            while rE >= rS and (sub(romanText, rE, rE) == " " or sub(romanText, rE, rE) == "\t") do
+              rE = rE - 1
+            end
+            local cleanRoman = sub(romanText, rS, rE)
+            if cleanRoman ~= "" then
+              romanCount = romanCount + 1
+              romanLines[romanCount] = format_lrc_time(startMs) .. cleanRoman
+            end
           end
         end
       end
@@ -746,12 +778,14 @@ function krc.parseDecodedText(text, rawTrans)
 
   local fullYrc = concat(yrcLines, "\n")
   local fullLrc = concat(plainLrcLines, "\n")
+  local fullRoman = romanCount > 0 and concat(romanLines, "\n") or nil
 
   return {
     lines = lines,
     wordByWord = fullYrc,
     lrc = fullLrc,
     translation = finalTranslation,
+    wordTranslation = fullRoman,
     synced = linesCount > 0
   }
 end

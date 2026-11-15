@@ -291,14 +291,45 @@ function catalog.lyrics(args)
     })
 
     if krcRes and krcRes.status == 200 and krcRes.content and krcRes.content ~= "" then
-      local okDec, decText = pcall(function()
-        return host.crypto({ operation = "krc_decode", input = krcRes.content })
-      end)
-      if okDec and decText and decText ~= "" then
-        local krcResult = krc.parseDecodedText(decText, krcRes.trans)
-        if krcResult and krcResult.synced then
-          transport.debugLog("catalog.lyrics download KRC success lines=" .. tostring(#krcResult.lines))
-          return { krcResult }
+      -- contenttype 非 0 表示 content 是普通文本（Base64 包装的 LRC），不是 KRC 密文。
+      -- 老歌与部分授权曲目会走这条分支，若无条件按 KRC 解密只会得到乱码。
+      local contentType = tostring(krcRes.contenttype or "0")
+      local decText = nil
+      if contentType ~= "0" then
+        transport.debugLog("catalog.lyrics contenttype=" .. contentType .. " treat as plain LRC")
+        if host and host.crypto then
+          local okPlain, plain = pcall(function()
+            return host.crypto({ operation = "base64_decode", input = krcRes.content })
+          end)
+          if okPlain and plain and plain ~= "" then decText = plain end
+        end
+        if not decText then decText = krc.base64_decode_bin(krcRes.content) end
+      else
+        local okDec, decoded = pcall(function()
+          return host.crypto({ operation = "krc_decode", input = krcRes.content })
+        end)
+        if okDec and decoded and decoded ~= "" then decText = decoded end
+      end
+
+      if decText and decText ~= "" then
+        if contentType ~= "0" then
+          local plainLines = models.parseLrc(decText)
+          if plainLines and plainLines[1] then
+            transport.debugLog("catalog.lyrics plain LRC in KRC branch lines=" .. tostring(#plainLines))
+            return {
+              {
+                lines = plainLines,
+                lrc = decText,
+                synced = true
+              }
+            }
+          end
+        else
+          local krcResult = krc.parseDecodedText(decText, krcRes.trans)
+          if krcResult and krcResult.synced then
+            transport.debugLog("catalog.lyrics download KRC success lines=" .. tostring(#krcResult.lines))
+            return { krcResult }
+          end
         end
       end
     end
