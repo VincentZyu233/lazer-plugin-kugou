@@ -405,6 +405,7 @@ end
 -- 歌曲评论区获取
 function catalog.comments(args)
   local songId = tostring(args and args.id or "")
+  transport.debugLog("catalog.comments START songId=" .. tostring(songId))
   if songId == "" then
     return { total = 0, hasMore = false, hot = {}, latest = {} }
   end
@@ -445,6 +446,8 @@ function catalog.comments(args)
     end
   end
 
+  transport.debugLog("catalog.comments resolved mixsongid=" .. tostring(mixsongid))
+
   -- 2. 请求酷狗网关官方评论接口
   local res, err = transport.request({
     method = "POST",
@@ -463,6 +466,7 @@ function catalog.comments(args)
   })
 
   if not res or type(res) ~= "table" then
+    transport.debugLog("catalog.comments failed res=" .. tostring(res) .. " err=" .. tostring(err))
     return { total = 0, hasMore = false, hot = {}, latest = {} }
   end
 
@@ -490,6 +494,8 @@ function catalog.comments(args)
       end
     end
   end
+
+  transport.debugLog("catalog.comments done total=" .. tostring(total) .. " latest=" .. tostring(latestCount) .. " hot=" .. tostring(hotCount))
 
   local hasMore = (offset + latestCount) < total
 

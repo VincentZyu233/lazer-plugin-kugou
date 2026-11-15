@@ -313,7 +313,10 @@ function models.comment(raw)
 
   local avatar = raw.user_pic
   if avatar and type(avatar) == "string" then
-    avatar = avatar:gsub("{size}", "150")
+    local pStart, pEnd = string.find(avatar, "{size}", 1, true)
+    if pStart and pEnd then
+      avatar = string.sub(avatar, 1, pStart - 1) .. "150" .. string.sub(avatar, pEnd + 1)
+    end
   end
 
   local likedCount = 0
@@ -338,14 +341,30 @@ function models.comment(raw)
   local timeMs = 0
   if raw.addtime then
     local tStr = tostring(raw.addtime)
-    local y, m, d, h, min, s = tStr:match("(%d+)-(%d+)-(%d+)%s+(%d+):(%d+):(%d+)")
-    if y and m and d and h and min and s and os and os.time then
-      timeMs = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(min), sec = tonumber(s) }) * 1000
+    local num = tonumber(tStr)
+    if num then
+      timeMs = num > 10000000000 and num or num * 1000
     else
-      local num = tonumber(tStr)
-      if num then
-        timeMs = num > 10000000000 and num or num * 1000
-      else
+      -- 纯字符串解析 "YYYY-MM-DD HH:MM:SS" (避免 lua_dardo_plus 的正则缺陷)
+      if string.len(tStr) >= 19 and string.sub(tStr, 5, 5) == "-" and string.sub(tStr, 8, 8) == "-" then
+        local y = tonumber(string.sub(tStr, 1, 4))
+        local m = tonumber(string.sub(tStr, 6, 7))
+        local d = tonumber(string.sub(tStr, 9, 10))
+        local h = tonumber(string.sub(tStr, 12, 13))
+        local mi = tonumber(string.sub(tStr, 15, 16))
+        local s = tonumber(string.sub(tStr, 18, 19))
+        if y and m and d and h and mi and s then
+          local days = (y - 1970) * 365 + math.floor((y - 1969) / 4)
+          local mDays = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 }
+          if (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) then
+            if m > 2 then days = days + 1 end
+          end
+          days = days + (mDays[m] or 0) + (d - 1)
+          local sec = days * 86400 + h * 3600 + mi * 60 + s - 28800
+          timeMs = sec * 1000
+        end
+      end
+      if timeMs == 0 then
         timeMs = (host and host.now and host.now()) or 0
       end
     end

@@ -79,7 +79,13 @@ function plugin.call(operation, args)
     end
     return res
   elseif operation == "comments" then
-    return catalog.comments(args)
+    local ok, res = pcall(function() return catalog.comments(args) end)
+    if not ok then
+      local transport = require("kgm.transport")
+      transport.debugLog("FATAL comments crash: " .. tostring(res))
+      return { total = 0, hasMore = false, hot = {}, latest = {} }
+    end
+    return res
   elseif operation == "playlist" then
     return catalog.playlist(args)
   elseif operation == "playlistSongs" then
