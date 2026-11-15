@@ -161,6 +161,10 @@ function catalog.stream(args)
       router = "trackercdn.kugou.com"
     })
 
+    if res and (res.album_audio_id or res.audio_id) then
+      models.cacheAudioId(hash, res.album_audio_id or res.audio_id)
+    end
+
     if res and (res.status == 1 or res.errcode == 0) and res.url then
       local playUrl = nil
       if type(res.url) == "table" and #res.url > 0 then
@@ -258,9 +262,50 @@ function catalog.lyrics(args)
 
   -- 2. 下载标准 LRC 格式歌词
   -- 注：酷狗返回 Base64 编码的标准 LRC 纯文本。在 Dart VM (lua_dardo_plus) 环境下，
-  -- 平台对每个 operation 严格限制了 250,000 条 Lua 指令上限 (withInstructionBudget)。
-  -- 纯 Lua 的 zlib inflate 解压需数十万条指令会导致 Lua instruction limit exceeded 崩溃；
-  -- 因此直接使用酷狗官方提供的 fmt="lrc" 接口，解析快、不超标、同步精准且绝对稳定。
+  -- 1. 优先尝试 KRC 逐字动感歌词（若当前宿主支持 krc_decode 扩展能力）
+  local canKrc = false
+  if host and host.crypto then
+    local okKrc = pcall(function()
+      return host.crypto({ operation = "krc_decode", input = "a3JjMTg=" })
+    end)
+    if okKrc then
+      canKrc = true
+    end
+  end
+
+  if canKrc then
+    transport.debugLog("catalog.lyrics trying KRC format for candidate id=" .. tostring(candidate.id))
+    local krcRes = transport.request({
+      path = "/download",
+      host = "lyrics.kugou.com",
+      clearDefaultParams = true,
+      notSign = true,
+      params = {
+        ver = "1",
+        client = "android",
+        id = tostring(candidate.id),
+        accesskey = tostring(candidate.accesskey),
+        fmt = "krc",
+        charset = "utf8"
+      }
+    })
+
+    if krcRes and krcRes.status == 200 and krcRes.content and krcRes.content ~= "" then
+      local okDec, decText = pcall(function()
+        return host.crypto({ operation = "krc_decode", input = krcRes.content })
+      end)
+      if okDec and decText and decText ~= "" then
+        local krcResult = krc.parseDecodedText(decText, krcRes.trans)
+        if krcResult and krcResult.synced then
+          transport.debugLog("catalog.lyrics download KRC success lines=" .. tostring(#krcResult.lines))
+          return { krcResult }
+        end
+      end
+    end
+    transport.debugLog("catalog.lyrics KRC fallback to LRC")
+  end
+
+  -- 2. Fallback: 官方普通逐行 LRC 接口（兼容普通官方宿主或未提供 KRC 格式的曲目）
   local downloadRes, errLrc = transport.request({
     path = "/download",
     host = "lyrics.kugou.com",
@@ -288,6 +333,9 @@ function catalog.lyrics(args)
     end
     if not rawLrc or rawLrc == "" then
       rawLrc = krc.base64_decode_bin(downloadRes.content)
+    end
+    if rawLrc then
+      rawLrc = string.gsub(rawLrc, "^[\239\187\191]", "")
     end
 
     if rawLrc and rawLrc ~= "" then

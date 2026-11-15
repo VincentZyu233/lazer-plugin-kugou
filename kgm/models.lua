@@ -21,10 +21,19 @@ function models.song(raw)
   local hash = raw.FileHash or raw.hash or raw.AudioHash or raw.HQFileHash or raw.SQFileHash or raw.hash_128 or raw.hash_320 or raw.hash_flac or ""
   if not hash or hash == "" then return nil end
 
-  -- 记录 album_audio_id 映射
-  local audioId = raw.album_audio_id or raw.AlbumAudioId or raw.audio_id or raw.Audioid or raw.mixsongid or raw.MixSongID
+  -- 记录 album_audio_id 映射 (支持多字段与全音质 Hash 批量关联)
+  local audioId = raw.album_audio_id or raw.AlbumAudioId or raw.audio_id or raw.Audioid or raw.mixsongid or raw.MixSongID or raw.ID or raw.id
   if audioId and tostring(audioId) ~= "0" and tostring(audioId) ~= "" then
-    models.cacheAudioId(hash, audioId)
+    local candidateHashes = {
+      raw.FileHash, raw.hash, raw.AudioHash, raw.HQFileHash, raw.SQFileHash,
+      raw.hash_128, raw.hash_320, raw.hash_flac, raw.hash_high, raw.hash_super,
+      raw.ResFileHash, raw.res_file_hash
+    }
+    for _, h in ipairs(candidateHashes) do
+      if h and type(h) == "string" and h ~= "" then
+        models.cacheAudioId(h, audioId)
+      end
+    end
   end
 
   local songName = raw.SongName or raw.songname or raw.OriSongName or raw.audio_name or ""
@@ -322,12 +331,14 @@ function models.comment(raw)
   if raw.addtime then
     local tStr = tostring(raw.addtime)
     local y, m, d, h, min, s = tStr:match("(%d+)-(%d+)-(%d+)%s+(%d+):(%d+):(%d+)")
-    if y and m and d and h and min and s then
+    if y and m and d and h and min and s and os and os.time then
       timeMs = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = tonumber(h), min = tonumber(min), sec = tonumber(s) }) * 1000
     else
       local num = tonumber(tStr)
       if num then
         timeMs = num > 10000000000 and num or num * 1000
+      else
+        timeMs = (host and host.now and host.now()) or 0
       end
     end
   end

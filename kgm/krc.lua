@@ -456,14 +456,21 @@ function krc.parse(base64Content, rawTrans)
       if jsonStr and jsonStr ~= "" and host and host.json_decode then
         local okJson, langData = pcall(host.json_decode, jsonStr)
         if okJson and langData and langData.content then
+          local transSec = nil
           for _, sec in ipairs(langData.content) do
-            if sec.lyricContent and type(sec.lyricContent) == "table" then
-              for _, item in ipairs(sec.lyricContent) do
-                local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
-                rawTransCount = rawTransCount + 1
-                embeddedTransLines[rawTransCount] = tStr
-              end
+            if sec.type == 1 then
+              transSec = sec
               break
+            end
+          end
+          if not transSec and #langData.content > 0 then
+            transSec = langData.content[1]
+          end
+          if transSec and transSec.lyricContent and type(transSec.lyricContent) == "table" then
+            for _, item in ipairs(transSec.lyricContent) do
+              local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
+              rawTransCount = rawTransCount + 1
+              embeddedTransLines[rawTransCount] = tStr
             end
           end
         end
@@ -491,9 +498,14 @@ function krc.parse(base64Content, rawTrans)
             -- 提取纯文本
             local cleanText = stripTags(contentPart)
 
-            -- 转换为 Lazer 原生识别的 YRC 逐字格式 (将 < 替换为 (, > 替换为 ))
-            local yrcContent = contentPart:gsub("<", "("):gsub(">", ")")
-            local yrcLine = string.format("[%d,%d]%s", startMs, durMs, yrcContent)
+            -- 转换为 Lazer 原生识别的 YRC 逐字格式 (将 <rel,dur,flag> 转换为 (absStart,dur,flag))
+            local yrcWords = {}
+            for relStr, wDurStr, flagStr, wText in string.gmatch(contentPart, "<(%d+),(%d+),(%d+)>([^<]*)") do
+              local rel = tonumber(relStr)
+              local absStart = startMs + rel
+              table.insert(yrcWords, "(" .. absStart .. "," .. wDurStr .. "," .. flagStr .. ")" .. wText)
+            end
+            local yrcLine = string.format("[%d,%d]%s", startMs, durMs, table.concat(yrcWords))
             yrcCount = yrcCount + 1
             yrcLines[yrcCount] = yrcLine
 
@@ -510,9 +522,10 @@ function krc.parse(base64Content, rawTrans)
             -- 对齐翻译歌词 (严密连续数组，杜绝 table.concat 稀疏洞异常)
             if rawTransCount >= linesCount then
               local transText = embeddedTransLines[linesCount] or ""
-              if transText ~= "" then
+              local cleanTrans = string.match(transText, "^%s*(.-)%s*$")
+              if cleanTrans and cleanTrans ~= "" then
                 transCount = transCount + 1
-                transLines[transCount] = format_lrc_time(startMs) .. transText
+                transLines[transCount] = format_lrc_time(startMs) .. cleanTrans
               end
             end
           end
@@ -527,6 +540,137 @@ function krc.parse(base64Content, rawTrans)
     local decodedTrans = krc.base64_decode_bin(rawTrans)
     if decodedTrans and decodedTrans ~= "" then
       finalTranslation = decodedTrans
+    end
+  end
+  if not finalTranslation and transCount > 0 then
+    finalTranslation = concat(transLines, "\n")
+  end
+
+  local fullYrc = concat(yrcLines, "\n")
+  local fullLrc = concat(plainLrcLines, "\n")
+
+  return {
+    lines = lines,
+    wordByWord = fullYrc,
+    lrc = fullLrc,
+    translation = finalTranslation,
+    synced = linesCount > 0
+  }
+end
+
+--- 解析宿主已经解密好的 KRC 明文字符串为 YRC 逐字动感格式
+-- @param text 宿主 krc_decode 解密后的明文字符串
+-- @param rawTrans 可选的酷狗返回的 trans 翻译 Base64 字符串
+-- @return table 包含 lines, wordByWord, lrc, translation, synced
+function krc.parseDecodedText(text, rawTrans)
+  if not text or text == "" then return nil end
+
+  local lines = {}
+  local linesCount = 0
+  local yrcLines = {}
+  local yrcCount = 0
+  local plainLrcLines = {}
+  local plainCount = 0
+  local embeddedTransLines = {}
+  local rawTransCount = 0
+  local transLines = {}
+  local transCount = 0
+
+  -- 1. 解析内嵌的 [language:Base64]
+  for line in text:gmatch("[^\r\n]+") do
+    if sub(line, 1, 10) == "[language:" then
+      local b64Payload = sub(line, 11, -2)
+      local jsonStr = nil
+      if host and host.crypto then
+        local okDec, decStr = pcall(function()
+          return host.crypto({ operation = "base64_decode", input = b64Payload })
+        end)
+        if okDec and decStr and decStr ~= "" then jsonStr = decStr end
+      end
+      if not jsonStr then
+        jsonStr = krc.base64_decode_bin(b64Payload)
+      end
+      if jsonStr and jsonStr ~= "" and host and host.json_decode then
+        local okJson, langData = pcall(host.json_decode, jsonStr)
+        if okJson and langData and langData.content then
+          local transSec = nil
+          for _, sec in ipairs(langData.content) do
+            if sec.type == 1 then
+              transSec = sec
+              break
+            end
+          end
+          if not transSec and #langData.content > 0 then
+            transSec = langData.content[1]
+          end
+          if transSec and transSec.lyricContent and type(transSec.lyricContent) == "table" then
+            for _, item in ipairs(transSec.lyricContent) do
+              local tStr = (type(item) == "table" and item[1]) or tostring(item or "")
+              rawTransCount = rawTransCount + 1
+              embeddedTransLines[rawTransCount] = tStr
+            end
+          end
+        end
+      end
+      break
+    end
+  end
+
+  -- 2. 解析逐行歌词与逐字数据
+  for rawLine in text:gmatch("[^\r\n]+") do
+    local line = string.match(rawLine, "^%s*(.-)%s*$")
+    local startMsStr, durMsStr, rest = string.match(line, "^%[(%d+),(%d+)%](.*)$")
+    if startMsStr and durMsStr and rest and rest ~= "" then
+      local lineStart = tonumber(startMsStr)
+      local lineDur = tonumber(durMsStr)
+      local yrcWords = {}
+      local plainTextParts = {}
+
+      for relStr, wDurStr, flagStr, wText in string.gmatch(rest, "<(%d+),(%d+),(%d+)>([^<]*)") do
+        local rel = tonumber(relStr)
+        local absStart = lineStart + rel
+        table.insert(yrcWords, "(" .. absStart .. "," .. wDurStr .. "," .. flagStr .. ")" .. wText)
+        table.insert(plainTextParts, wText)
+      end
+
+      if #yrcWords > 0 then
+        linesCount = linesCount + 1
+        local fullLineText = table.concat(plainTextParts)
+        local yrcLine = "[" .. lineStart .. "," .. lineDur .. "]" .. table.concat(yrcWords)
+        yrcCount = yrcCount + 1
+        yrcLines[yrcCount] = yrcLine
+
+        lines[linesCount] = {
+          startMs = lineStart,
+          text = fullLineText
+        }
+
+        plainCount = plainCount + 1
+        plainLrcLines[plainCount] = format_lrc_time(lineStart) .. fullLineText
+
+        if rawTransCount >= linesCount then
+          local transText = embeddedTransLines[linesCount] or ""
+          local cleanTrans = string.match(transText, "^%s*(.-)%s*$")
+          if cleanTrans and cleanTrans ~= "" then
+            transCount = transCount + 1
+            transLines[transCount] = format_lrc_time(lineStart) .. cleanTrans
+          end
+        end
+      end
+    end
+  end
+
+  -- 3. 决定双语翻译输出
+  local finalTranslation = nil
+  if rawTrans and rawTrans ~= "" then
+    if host and host.crypto then
+      local okT, decT = pcall(function()
+        return host.crypto({ operation = "base64_decode", input = rawTrans })
+      end)
+      if okT and decT and decT ~= "" then finalTranslation = decT end
+    end
+    if not finalTranslation then
+      finalTranslation = krc.base64_decode_bin(rawTrans)
     end
   end
   if not finalTranslation and transCount > 0 then
