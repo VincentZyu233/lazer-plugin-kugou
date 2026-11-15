@@ -73,7 +73,9 @@ function plugin.call(operation, args)
     if not ok then
       local transport = require("kgm.transport")
       transport.debugLog("FATAL lyrics crash: " .. tostring(res))
-      return {}
+      -- 不能返回空表：宿主会把空列表判定为「纯音乐」并永久写盘缓存，
+      -- 之后连插件都不再询问，用户将永远看不到歌词。抛 code 70 让宿主保持可重试。
+      error("Gateway code 70", 0)
     end
     return res
   elseif operation == "comments" then
