@@ -161,8 +161,8 @@ function catalog.stream(args)
       router = "trackercdn.kugou.com"
     })
 
-    if res and (res.album_audio_id or res.audio_id) then
-      models.cacheAudioId(hash, res.album_audio_id or res.audio_id)
+    if res and res.album_audio_id and tostring(res.album_audio_id) ~= "0" and tostring(res.album_audio_id) ~= "" then
+      models.cacheAudioId(hash, res.album_audio_id)
     end
 
     if res and (res.status == 1 or res.errcode == 0) and res.url then
@@ -414,12 +414,12 @@ function catalog.comments(args)
   local offset = tonumber(args and args.offset or 0) or 0
   local page = math.floor(offset / limit) + 1
 
-  -- 1. 解析 mixsongid (若传入的是 32 位 hex hash，先查缓存，未命中则请求 /v2/get_res_privilege/lite 查询真实 album_audio_id)
+  -- 1. 解析 mixsongid (若传入的是 32 位 hex hash，先查有效缓存，未命中则请求 /v2/get_res_privilege/lite 查询真实 album_audio_id)
   local mixsongid = songId
   local sLen = string.len(songId)
   if sLen == 32 then
     local cached = models.getAudioId(songId)
-    if cached then
+    if cached and tonumber(cached) and tonumber(cached) > 1000000 then
       mixsongid = cached
     else
       -- 动态通过歌曲 hash 查真实 album_audio_id

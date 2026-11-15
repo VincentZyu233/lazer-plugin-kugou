@@ -22,7 +22,10 @@
 
 ### 🎤 1. KRC 逐字动感歌词与毫秒级高亮 (Word-by-Word Lyrics)
 全面支持酷狗官方 KRC 动感歌词协议，毫秒级逐字打点平滑跟随，支持 140+ FPS 满帧丝滑渲染。
-![KRC 逐字动感歌词 - 周杰伦《晴天》](docs/images/preview/krc.wordbyword.lyrics/preview_qingtian.jpg)
+
+![KRC 逐字动感歌词 - 周杰伦《晴天》](docs/images/preview/krc.wordbyword.lyrics/preview_qingtian_lyrics.gif)
+
+👉 **[点击跳转到酷狗音乐支持逐字歌词的歌曲示范 (包含 10 首各语种与曲风实测)](docs/images/preview/krc.wordbyword.lyrics/README.md)**
 
 ### 📻 2. 主页发现与专属电台
 深度融合酷狗推荐算法，支持今日限定好歌、私人漫游、心动模式、热门排行榜与电台流。

@@ -21,8 +21,8 @@ function models.song(raw)
   local hash = raw.FileHash or raw.hash or raw.AudioHash or raw.HQFileHash or raw.SQFileHash or raw.hash_128 or raw.hash_320 or raw.hash_flac or ""
   if not hash or hash == "" then return nil end
 
-  -- 记录 album_audio_id 映射 (支持多字段与全音质 Hash 批量关联)
-  local audioId = raw.album_audio_id or raw.AlbumAudioId or raw.audio_id or raw.Audioid or raw.mixsongid or raw.MixSongID or raw.ID or raw.id
+  -- 记录 album_audio_id 映射 (仅记录真实的 album_audio_id / mixsongid，避免旧 audio_id 污染导致评论区 0 条评论)
+  local audioId = raw.album_audio_id or raw.AlbumAudioId or raw.mixsongid or raw.MixSongID
   if audioId and tostring(audioId) ~= "0" and tostring(audioId) ~= "" then
     local candidateHashes = {
       raw.FileHash, raw.hash, raw.AudioHash, raw.HQFileHash, raw.SQFileHash,
