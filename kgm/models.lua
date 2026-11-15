@@ -37,6 +37,14 @@ function models.song(raw)
   end
 
   local songName = raw.SongName or raw.songname or raw.OriSongName or raw.audio_name or ""
+  local suffix = raw.Suffix or raw.suffix or raw.SongNameSuffix or raw.songNameSuffix or raw.Remark or raw.remark or ""
+  if suffix ~= "" and type(suffix) == "string" and not string.find(songName, suffix, 1, true) then
+    if string.sub(suffix, 1, 1) == "(" or string.sub(suffix, 1, 1) == "（" then
+      songName = songName .. " " .. suffix
+    else
+      songName = songName .. " (" .. suffix .. ")"
+    end
+  end
   local singerName = raw.SingerName or raw.singername or raw.author_name or ""
 
   -- 如果没有提取出 songName，但有 FileName 或 name (如 "歌手 - 歌名")
