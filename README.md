@@ -9,37 +9,42 @@
 - **全能力支持**：
   - **歌曲搜索**：单曲、专辑、歌手多维度搜索与纠错。
   - **高品质音频流**：支持 V5 接口动态解析，标准码率至无损 FLAC 智能降级回退。
-  - **同步歌词**：支持标准 LRC 歌词抓取与精确时间轴同步。
+  - **逐字动感歌词**：支持酷狗官方 KRC 格式，毫秒级逐字打点平移高亮 (YRC) 与纯净双语中文翻译。
+  - **歌曲评论区**：支持歌曲热门与最新评论流、用户头像、发表时间与点赞数浏览。
   - **双重登录**：支持酷狗音乐手机 App **Web 扫码登录**与**手机短信验证码登录**。
   - **个性化推荐**：支持每日推荐歌曲（`homeFeed`）、发现歌单广场与排行榜。
   - **收藏同步**：支持同步云端红心收藏列表。
-- **轻量独立**：纯 Lua 实现，无额外原生动态库依赖，打包体积仅几十 KB。
+- **轻量独立**：纯 Lua 实现，无额外原生动态库依赖，打包体积仅 30 KB。
 
 ---
 
 ## 📸 界面预览 (Preview)
 
-### 📻 1. 主页发现与专属电台
+### 🎤 1. KRC 逐字动感歌词与毫秒级高亮 (Word-by-Word Lyrics)
+全面支持酷狗官方 KRC 动感歌词协议，毫秒级逐字打点平滑跟随，支持 140+ FPS 满帧丝滑渲染。
+![KRC 逐字动感歌词 - 周杰伦《晴天》](docs/images/preview/krc.wordbyword.lyrics/preview_qingtian.jpg)
+
+### 📻 2. 主页发现与专属电台
 深度融合酷狗推荐算法，支持今日限定好歌、私人漫游、心动模式、热门排行榜与电台流。
 ![主页发现与电台](docs/images/preview/homepage.png)
 
-### 🔍 2. 单曲搜索 (Song Search)
+### 🔍 3. 单曲搜索 (Song Search)
 多维度精准检索单曲，快速匹配歌曲、歌手与完整音质信息。
 ![单曲搜索](docs/images/preview/search.song.iyowa.png)
 
-### 💿 3. 专辑搜索 (Album Search)
+### 💿 4. 专辑搜索 (Album Search)
 支持独立专辑 Tab 检索，呈现完整的唱片发行与专辑详情。
 ![专辑搜索](docs/images/preview/search.album.lol.png)
 
-### 📑 4. 歌单搜索 (Playlist Search)
+### 📑 5. 歌单搜索 (Playlist Search)
 检索丰富的公共精选歌单与分类特辑，支持即时浏览与整张试听。
 ![歌单搜索](docs/images/preview/search.songlist.jaychou.png)
 
-### ❤️ 5. 红心收藏与我喜欢的音乐 (Favorites)
+### ❤️ 6. 红心收藏与我喜欢的音乐 (Favorites)
 播放器底栏爱心一键点亮与取消，双向秒级无感同步酷狗云端“我喜欢”歌单。
 ![红心收藏与我喜欢的音乐](docs/images/preview/like.png)
 
-### ☁️ 6. 云端自建歌单同步 (User Created Playlists)
+### ☁️ 7. 云端自建歌单同步 (User Created Playlists)
 手机端酷狗 App 自建歌单无缝同步，纯净挂载于左侧资料库与“我的音乐”。
 ![自建歌单联动](docs/images/preview/self.create.songlist.png)
 

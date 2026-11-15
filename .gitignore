@@ -15,6 +15,7 @@ __pycache__/
 *.log
 *.tmp
 temp/
+tmp/
 AGENTS.local.md
 *.local.md
 .DS_Store
