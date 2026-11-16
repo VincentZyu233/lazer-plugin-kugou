@@ -12,7 +12,7 @@
 
 ---
 
-## 🖼️ 多语种与全曲风静态实测效果集 (共 10 首示范)
+## 🖼️ 多语种与全曲风静态实测效果集 (共 11 首示范)
 
 ### 🇨🇳 华语经典抒情与长音渲染
 #### 1. 《晴天》 - 周杰伦 (63 行逐字跟随)
@@ -36,20 +36,23 @@
 #### 6. 《ヴァンパイア (吸血鬼)》 - DECO*27 / 初音ミク (72 行现代高热度密集跟随)
 ![ヴァンパイア](preview_vampire.jpg)
 
+#### 7. 《ハナタバ (花束)》 - MIMI / 可不 (🌟 三轨全齐：原文动感 + 罗马音音译 + 中文双语翻译)
+![ハナタバ (花束)](preview_mimi_hanataba_lyrics.jpg)
+
 ---
 
 ### 🇯🇵 日文流行 (J-POP)
-#### 7. 《夜に駆ける (向夜晚奔去)》 - YOASOBI (88 行极速逐字跟随)
+#### 8. 《夜に駆ける (向夜晚奔去)》 - YOASOBI (88 行极速逐字跟随)
 ![夜に駆ける](preview_yoasobi_yoru_1.jpg)
 
-#### 8. 《Lemon》 - 米津玄師 (57 行抒情打点)
+#### 9. 《Lemon》 - 米津玄師 (57 行抒情打点)
 ![Lemon](preview_lemon.jpg)
 
 ---
 
 ### 🌍 欧美流行 (Western POP)
-#### 9. 《Rolling in the Deep》 - Adele (77 行英文逐词高亮与双语中文)
+#### 10. 《Rolling in the Deep》 - Adele (77 行英文逐词高亮与双语中文)
 ![Rolling in the Deep](preview_rolling_in_the_deep.jpg)
 
-#### 10. 《Shape of You》 - Ed Sheeran (91 行英文律动节奏打点)
+#### 11. 《Shape of You》 - Ed Sheeran (91 行英文律动节奏打点)
 ![Shape of You](preview_shape_of_you.jpg)

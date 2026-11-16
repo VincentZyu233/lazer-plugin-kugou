@@ -25,6 +25,10 @@
 
 ![KRC 逐字动感歌词 - 周杰伦《晴天》](docs/images/preview/krc.wordbyword.lyrics/preview_qingtian_lyrics.gif)
 
+#### 🌟 原生三轨歌词支持：原文动感 + 罗马音音译 + 中文双语翻译
+全面支持三轨歌词同步解析与渲染，在播放日文/外语曲目时，可同时展现日文原文动感歌词、罗马音音译及中文双语翻译：
+![三轨歌词实测 - MIMI / 可不《ハナタバ (花束)》](docs/images/preview/krc.wordbyword.lyrics/preview_mimi_hanataba_lyrics.jpg)
+
 👉 **[点击跳转到酷狗音乐支持逐字歌词的歌曲示范 (包含 10 首各语种与曲风实测)](docs/images/preview/krc.wordbyword.lyrics/README.md)**
 
 ### 📻 2. 主页发现与专属电台
