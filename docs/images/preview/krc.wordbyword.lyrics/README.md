@@ -10,7 +10,7 @@
 
 | 分组 / 类别 | 歌曲名称 | 艺术家 | 歌词支持能力 | 截图收录状态 | 对应文件 / 说明 |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| **新锐术力口** | **ラグトレイン (延误列车 / Lagtrain)** | 稲葉曇、歌愛ユキ | 🌟 三轨全齐 (原文+罗马音+翻译) | ❌ | 待补充实测截图 |
+| **新锐术力口** | **ラグトレイン (延误列车 / Lagtrain)** | 稲葉曇、歌愛ユキ | 🌟 三轨全齐 (原文+罗马音+翻译) | ✅ | [`preview_inabakumori_lagtrain_lyrics.jpg`](preview_inabakumori_lagtrain_lyrics.jpg) |
 | **新锐术力口** | **きゅうくらりん (Kyu-kurarin)** | いよわ、可不 | 🌟 三轨全齐 (原文+罗马音+翻译) | ❌ | 待补充实测截图 |
 | **新锐术力口** | **1000年生きてる (活了一千年)** | いよわ、初音ミク | 🌟 三轨全齐 (原文+罗马音+翻译) | ❌ | 待补充实测截图 |
 | **新锐术力口** | **ハナタバ (花束)** | MIMI、可不 | 🌟 三轨全齐 (原文+罗马音+翻译) | ✅ | [`preview_mimi_hanataba_lyrics.jpg`](preview_mimi_hanataba_lyrics.jpg) |
@@ -53,7 +53,7 @@
 
 ---
 
-## 🖼️ 多语种与全曲风静态实测效果集 (共 11 首示范)
+## 🖼️ 多语种与全曲风静态实测效果集 (共 12 首示范)
 
 ### 🇨🇳 华语经典抒情与长音渲染
 #### 1. 《晴天》 - 周杰伦 (63 行逐字跟随)
@@ -80,20 +80,23 @@
 #### 7. 《ハナタバ (花束)》 - MIMI / 可不 (🌟 三轨全齐：原文动感 + 罗马音音译 + 中文双语翻译)
 ![ハナタバ (花束)](preview_mimi_hanataba_lyrics.jpg)
 
+#### 8. 《ラグトレイン (延误列车)》 - 稲葉曇 / 歌愛ユキ (🌟 三轨全齐：原文动感 + 罗马音音译 + 中文双语翻译)
+![ラグトレイン (延误列车)](preview_inabakumori_lagtrain_lyrics.jpg)
+
 ---
 
 ### 🇯🇵 日文流行 (J-POP)
-#### 8. 《夜に駆ける (向夜晚奔去)》 - YOASOBI (88 行极速逐字跟随)
+#### 9. 《夜に駆ける (向夜晚奔去)》 - YOASOBI (88 行极速逐字跟随)
 ![夜に駆ける](preview_yoasobi_yoru_1.jpg)
 
-#### 9. 《Lemon》 - 米津玄師 (57 行抒情打点)
+#### 10. 《Lemon》 - 米津玄師 (57 行抒情打点)
 ![Lemon](preview_lemon.jpg)
 
 ---
 
 ### 🌍 欧美流行 (Western POP)
-#### 10. 《Rolling in the Deep》 - Adele (77 行英文逐词高亮与双语中文)
+#### 11. 《Rolling in the Deep》 - Adele (77 行英文逐词高亮与双语中文)
 ![Rolling in the Deep](preview_rolling_in_the_deep.jpg)
 
-#### 11. 《Shape of You》 - Ed Sheeran (91 行英文律动节奏打点)
+#### 12. 《Shape of You》 - Ed Sheeran (91 行英文律动节奏打点)
 ![Shape of You](preview_shape_of_you.jpg)
