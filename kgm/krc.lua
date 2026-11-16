@@ -75,10 +75,15 @@ function krc.parseDecodedText(text, rawTrans)
   local plainLrcLines = {}
   local plainCount = 0
   local transSec = nil
+  local romSec = nil
   local embeddedTransLines = {}
   local rawTransCount = 0
   local transLines = {}
   local transCount = 0
+  local embeddedRomanLines = {}
+  local rawRomanCount = 0
+  local romanLines = {}
+  local romanCount = 0
 
   -- 纯字符串按行切分
   local allLines = {}
@@ -138,11 +143,14 @@ function krc.parseDecodedText(text, rawTrans)
           for _, sec in ipairs(langData.content) do
             if sec.type == 1 and not transSec then
               transSec = sec
-              break
+            elseif sec.type == 0 and not romSec then
+              romSec = sec
             end
           end
           embeddedTransLines = collect(transSec)
           rawTransCount = #embeddedTransLines
+          embeddedRomanLines = collect(romSec)
+          rawRomanCount = #embeddedRomanLines
         end
       end
       break
@@ -210,7 +218,7 @@ function krc.parseDecodedText(text, rawTrans)
             yrcCount = yrcCount + 1
             yrcLines[yrcCount] = yrcLine
 
-            lines[linesCount] = {
+            local lineItem = {
               startMs = startMs,
               text = fullLineText
             }
@@ -231,8 +239,28 @@ function krc.parseDecodedText(text, rawTrans)
               if cleanTrans ~= "" then
                 transCount = transCount + 1
                 transLines[transCount] = format_lrc_time(startMs) .. cleanTrans
+                lineItem.translation = cleanTrans
               end
             end
+
+            if rawRomanCount >= linesCount then
+              local romanText = embeddedRomanLines[linesCount] or ""
+              local rS, rE = 1, len(romanText)
+              while rS <= rE and (sub(romanText, rS, rS) == " " or sub(romanText, rS, rS) == "\t") do
+                rS = rS + 1
+              end
+              while rE >= rS and (sub(romanText, rE, rE) == " " or sub(romanText, rE, rE) == "\t") do
+                rE = rE - 1
+              end
+              local cleanRoman = sub(romanText, rS, rE)
+              if cleanRoman ~= "" then
+                romanCount = romanCount + 1
+                romanLines[romanCount] = format_lrc_time(startMs) .. cleanRoman
+                lineItem.romanization = cleanRoman
+              end
+            end
+
+            lines[linesCount] = lineItem
           end
         end
       end
@@ -256,6 +284,11 @@ function krc.parseDecodedText(text, rawTrans)
     finalTranslation = concat(transLines, "\n")
   end
 
+  local finalRomanization = nil
+  if romanCount > 0 then
+    finalRomanization = concat(romanLines, "\n")
+  end
+
   local fullYrc = concat(yrcLines, "\n")
   local fullLrc = concat(plainLrcLines, "\n")
 
@@ -264,6 +297,7 @@ function krc.parseDecodedText(text, rawTrans)
     wordByWord = fullYrc,
     lrc = fullLrc,
     translation = finalTranslation,
+    romanization = finalRomanization,
     synced = linesCount > 0
   }
 end
