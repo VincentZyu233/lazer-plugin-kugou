@@ -65,6 +65,12 @@ SONG_GROUPS = {
                 "desc": "MIMI 治愈系代表神曲，细腻情感动感打点"
             },
             {
+                "title": "サイエンス (Science) (feat. 重音テト)",
+                "artist": "MIMI、重音テト",
+                "hash": "5a2cef0a749c4f223612ee265b58ba9a",
+                "desc": "MIMI 人气治愈系力作，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
+            },
+            {
                 "title": "今はいいんだよ。 (现在这样就好。)",
                 "artist": "MIMI、可不",
                 "hash": "195cd85b071a0fb1980ebdb53e324c50",
