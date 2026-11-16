@@ -1,62 +1,159 @@
-[
-  {
-    "title": "千本桜",
-    "artist": "初音ミク",
-    "hash": "1b111e263ee8210413bff2e80da29a13",
-    "desc": "术力口Vocaloid 传世经典 (逐字动感 + 双语翻译)"
+{
+  "_comment": "酷狗逐字动感歌词 (KRC) 自动化测试曲库，已按多轨歌词能力与风格结构化分组",
+  "vocaloid_three_tier_modern": {
+    "group_name": "新锐术力口名 P 主 (稻叶昙 / いよわ / MIMI)",
+    "capabilities": "【三轨全齐】：日文原文逐字动感 (YRC) + 罗马音音译 (Romanization) + 中文双语翻译",
+    "songs": [
+      {
+        "title": "ラグトレイン (延误列车 / Lagtrain)",
+        "artist": "稲葉曇、歌愛ユキ",
+        "hash": "92adb9924cdee8fc549776acc2d77908",
+        "desc": "稻叶昙传世名作，灰黑女孩封面，三行歌词基准验证曲"
+      },
+      {
+        "title": "きゅうくらりん (Kyu-kurarin)",
+        "artist": "いよわ、可不",
+        "hash": "767bafb163149331f0a30723d60819f3",
+        "desc": "いよわ 极高人气神作，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
+      },
+      {
+        "title": "1000年生きてる (活了一千年)",
+        "artist": "いよわ、初音ミク",
+        "hash": "9f56e1d827b859e1dc8e6bec20a3a3d4",
+        "desc": "いよわ 殿堂金曲，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
+      },
+      {
+        "title": "ハナタバ (花束)",
+        "artist": "MIMI、可不",
+        "hash": "fcbc7ffd80ec9020f3ac6bf4a163cde7",
+        "desc": "MIMI 治愈系代表神曲，细腻情感动感打点"
+      }
+    ]
   },
-  {
-    "title": "深海少女",
-    "artist": "初音ミク",
-    "hash": "e89a65c84cf6b85c8408cb1489acb773",
-    "desc": "术力口Vocaloid 经典抒情 (逐字动感 + 双语翻译)"
+  "vocaloid_three_tier_classics": {
+    "group_name": "传世术力口经典神曲 (Vocaloid Classics)",
+    "capabilities": "【三轨全齐】：日文原文逐字动感 (YRC) + 罗马音音译 (Romanization) + 中文双语翻译",
+    "songs": [
+      {
+        "title": "千本桜",
+        "artist": "初音ミク、WhiteFlame",
+        "hash": "1b111e263ee8210413bff2e80da29a13",
+        "desc": "术力口传世第一神曲 (逐字动感 + 罗马音 + 双语翻译)"
+      },
+      {
+        "title": "深海少女",
+        "artist": "初音ミク、ゆうゆ",
+        "hash": "e89a65c84cf6b85c8408cb1489acb773",
+        "desc": "术力口经典抒情慢歌 (逐字动感 + 罗马音 + 双语翻译)"
+      },
+      {
+        "title": "メルト (Melt)",
+        "artist": "Ryo、初音ミク",
+        "hash": "d77911d9332ef6ba1f55d0f47c2283c3",
+        "desc": "supercell / Ryo 黄金时代起点作"
+      },
+      {
+        "title": "ロミオとシンデレラ (罗密欧与辛德瑞拉)",
+        "artist": "doriko、初音ミク",
+        "hash": "bab453d1d3fd883e4077213796c27cc2",
+        "desc": "doriko 殿堂经典，三轨数据完整"
+      },
+      {
+        "title": "ロキ (ROKI)",
+        "artist": "鏡音リン、みきとP",
+        "hash": "bf6902f3529198e6b9a2b9125ebe5b76",
+        "desc": "超高燃双人快节奏对唱打点"
+      },
+      {
+        "title": "ヴァンパイア (吸血鬼)",
+        "artist": "DECO*27、初音ミク",
+        "hash": "63c13235c1469d1b716015c632ecda29",
+        "desc": "现代高热度舞曲风格 (逐字动感 + 罗马音 + 双语翻译)"
+      },
+      {
+        "title": "六兆年と一夜物語",
+        "artist": "kemu、IA",
+        "hash": "652b60a6633018ddec3945d964c22ec2",
+        "desc": "超高速 BPM 密集打点，考验逐字解析极限"
+      },
+      {
+        "title": "ロストワンの号哭",
+        "artist": "鏡音リン、Neru",
+        "hash": "04b8a9f6b08d9dcf1482aca0658cfcc7",
+        "desc": "Neru 摇滚疾走曲，动感极佳"
+      },
+      {
+        "title": "神っぽいな (像神一样呐)",
+        "artist": "ピノキオピー、初音ミク",
+        "hash": "d1912b08e1596a9ff593bb6dc669b632",
+        "desc": "匹诺曹P 讽刺风洗脑神曲"
+      },
+      {
+        "title": "アンノウン・マザーグース (Unknown Mother-Goose)",
+        "artist": "wowaka、初音ミク",
+        "hash": "e051d18d14531fcedda5e5e029eb92ff",
+        "desc": "wowaka 遗作绝唱，高密度文字与情感爆发"
+      }
+    ]
   },
-  {
-    "title": "ロキ (ROKI)",
-    "artist": "鏡音リン、みきとP",
-    "hash": "bf6902f3529198e6b9a2b9125ebe5b76",
-    "desc": "术力口Vocaloid 超高燃快节奏 (逐字动感 + 双语翻译)"
+  "jpop": {
+    "group_name": "J-Pop 热门流行",
+    "capabilities": "逐字动感歌词 + 中文双语翻译",
+    "songs": [
+      {
+        "title": "夜に駆ける",
+        "artist": "YOASOBI",
+        "hash": "2131897fda53adbf58825cc3c61d0860",
+        "desc": "极高节奏动感流行，逐字双语打点"
+      },
+      {
+        "title": "Lemon",
+        "artist": "米津玄師",
+        "hash": "da60f11f69affc7107adede9dd17352a",
+        "desc": "日剧神曲，标准动感打点与双语翻译"
+      },
+      {
+        "title": "幽霊東京",
+        "artist": "Ayase、初音ミク",
+        "hash": "633586779348c8d1262fa43c528c3db1",
+        "desc": "都市感流行电子作"
+      }
+    ]
   },
-  {
-    "title": "ヴァンパイア (吸血鬼)",
-    "artist": "DECO*27、初音ミク",
-    "hash": "63c13235c1469d1b716015c632ecda29",
-    "desc": "术力口Vocaloid 现代高热度 (逐字动感 + 双语翻译)"
+  "western_pop": {
+    "group_name": "欧美流行热单",
+    "capabilities": "英文逐词动感 + 中文字幕",
+    "songs": [
+      {
+        "title": "Rolling in the Deep",
+        "artist": "Adele",
+        "hash": "453cbdd4347ccbf2f6203f37c9d9597c",
+        "desc": "经典英文律动大单，逐词动感 + 中文字幕"
+      },
+      {
+        "title": "Shape of You",
+        "artist": "Ed Sheeran",
+        "hash": "b6a303c9cda8e6c4c0b2fb0b23a570c6",
+        "desc": "流行轻快节奏打击点"
+      }
+    ]
   },
-  {
-    "title": "夜に駆ける",
-    "artist": "YOASOBI",
-    "hash": "2131897fda53adbf58825cc3c61d0860",
-    "desc": "日文流行高节奏动感 (逐字动感 + 中文双语翻译)"
-  },
-  {
-    "title": "Lemon",
-    "artist": "米津玄師",
-    "hash": "da60f11f69affc7107adede9dd17352a",
-    "desc": "日文流行殿堂金曲 (逐字动感 + 中文双语翻译)"
-  },
-  {
-    "title": "Rolling in the Deep",
-    "artist": "Adele",
-    "hash": "453cbdd4347ccbf2f6203f37c9d9597c",
-    "desc": "欧美流行大热单曲 (逐字动感 + 中英双语翻译)"
-  },
-  {
-    "title": "Shape of You",
-    "artist": "Ed Sheeran",
-    "hash": "b6a303c9cda8e6c4c0b2fb0b23a570c6",
-    "desc": "欧美流行英文律动 (逐字动感 + 中英双语翻译)"
-  },
-  {
-    "title": "晴天",
-    "artist": "周杰伦",
-    "hash": "b3a52a7a958bf0aed0ebfba2e9a818b7",
-    "desc": "华语经典逐字动感标杆"
-  },
-  {
-    "title": "江南",
-    "artist": "林俊杰",
-    "hash": "b83dbb8e3dd3fcf86bf32690b91547f5",
-    "desc": "华语经典标准抒情逐字打点"
+  "chinese_classics": {
+    "group_name": "华语经典流行",
+    "capabilities": "原生中文单语极高品质动感逐字歌词标杆",
+    "songs": [
+      {
+        "title": "晴天",
+        "artist": "周杰伦",
+        "hash": "b3a52a7a958bf0aed0ebfba2e9a818b7",
+        "desc": "华语传唱标杆，极细粒度逐字时间轴"
+      },
+      {
+        "title": "江南",
+        "artist": "林俊杰",
+        "hash": "b83dbb8e3dd3fcf86bf32690b91547f5",
+        "desc": "中国风抒情转音打点"
+      }
+    ]
   }
-]
+}

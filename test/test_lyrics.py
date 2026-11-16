@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
-酷狗逐字动感歌词 (KRC) 与双语翻译自动化验证脚本
+酷狗逐字动感歌词 (KRC)、双语翻译与罗马音音译自动化测试验证脚本
 
-使用方式：
-  1. 默认批量回归测试多首内置经典曲目：
+支持功能：
+  1. 验证 KRC 密文解密、Zlib 解压与 YRC 逐字时间轴打点。
+  2. 验证多语言语言包解析：
+     - type == 1：中文双语翻译
+     - type == 0：罗马音音译 (Romanization / 拼音音译)
+  3. 支持按分组批量测试或测试指定歌曲：
      uv run python test/test_lyrics.py
-  2. 测试任意自定义歌曲：
-     uv run python test/test_lyrics.py "林俊杰 江南"
-     uv run python test/test_lyrics.py b3a52a7a958bf0aed0ebfba2e9a818b7
+     uv run python test/test_lyrics.py --group vocaloid_modern
+     uv run python test/test_lyrics.py "稲葉曇 ラグトレイン"
+     uv run python test/test_lyrics.py 92adb9924cdee8fc549776acc2d77908
 """
 
+import base64
+import json
 import os
 import sys
-import json
-import zlib
-import base64
-import urllib.request
 import urllib.parse
+import urllib.request
+import zlib
 
 HEADERS = {
     "User-Agent": "KuGou2012-9020-Metadata-SearchArtistLyric",
@@ -25,69 +29,204 @@ HEADERS = {
 
 KRC_KEY = bytes([64, 71, 97, 119, 94, 50, 116, 71, 81, 54, 49, 45, 206, 210, 110, 105])
 
-# 预置 10 首代表性曲目 (覆盖术力口Vocaloid、J-Pop、欧美流行与华语，100% 具备逐字动感歌词与双语翻译)
-DEFAULT_SONGS = [
-    {
-        "title": "千本桜",
-        "artist": "初音ミク",
-        "hash": "1b111e263ee8210413bff2e80da29a13",
-        "desc": "术力口Vocaloid 传世经典 (逐字动感 + 双语翻译)"
+# ==============================================================================
+# 歌曲测试曲库定义（按曲目特性、语言与风格结构化分组）
+# ==============================================================================
+SONG_GROUPS = {
+    # --------------------------------------------------------------------------
+    # 分组 1：新锐术力口 (MIMI / いよわ / 稻叶昙) —— 100% 具备【逐字动感 + 罗马音 + 中文翻译】
+    # --------------------------------------------------------------------------
+    "vocaloid_modern": {
+        "name": "新锐术力口名 P 主（いよわ / 稻叶昙 / MIMI）",
+        "description": "具备完整三行歌词轨：日文原文 + 罗马音音译 + 中文双语翻译",
+        "songs": [
+            {
+                "title": "ラグトレイン (延误列车 / Lagtrain)",
+                "artist": "稲葉曇、歌愛ユキ",
+                "hash": "92adb9924cdee8fc549776acc2d77908",
+                "desc": "稻叶昙传世名作，灰黑女孩封面，三行歌词基准验证曲"
+            },
+            {
+                "title": "きゅうくらりん (Kyu-kurarin)",
+                "artist": "いよわ、可不",
+                "hash": "767bafb163149331f0a30723d60819f3",
+                "desc": "いよわ 极高人气神作，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
+            },
+            {
+                "title": "1000年生きてる (活了一千年)",
+                "artist": "いよわ、初音ミク",
+                "hash": "9f56e1d827b859e1dc8e6bec20a3a3d4",
+                "desc": "いよわ 殿堂金曲，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
+            },
+            {
+                "title": "ハナタバ (花束)",
+                "artist": "MIMI、可不",
+                "hash": "fcbc7ffd80ec9020f3ac6bf4a163cde7",
+                "desc": "MIMI 治愈系代表神曲，细腻情感动感打点"
+            },
+            {
+                "title": "今はいいんだよ。 (现在这样就好。)",
+                "artist": "MIMI、可不",
+                "hash": "195cd85b071a0fb1980ebdb53e324c50",
+                "desc": "MIMI 可不温柔抒情作，逐字动感节奏"
+            }
+        ]
     },
-    {
-        "title": "深海少女",
-        "artist": "初音ミク",
-        "hash": "e89a65c84cf6b85c8408cb1489acb773",
-        "desc": "术力口Vocaloid 经典抒情 (逐字动感 + 双语翻译)"
+
+    # --------------------------------------------------------------------------
+    # 分组 2：经典术力口神曲 (Vocaloid Classics) —— 100% 具备【逐字动感 + 罗马音 + 中文翻译】
+    # --------------------------------------------------------------------------
+    "vocaloid_classics": {
+        "name": "传世术力口经典神曲 (Vocaloid Classics)",
+        "description": "殿堂级初音未来 / 镜音双子神曲，多音轨覆盖完备",
+        "songs": [
+            {
+                "title": "千本桜",
+                "artist": "初音ミク、WhiteFlame",
+                "hash": "1b111e263ee8210413bff2e80da29a13",
+                "desc": "术力口传世第一神曲 (逐字动感 + 罗马音 + 双语翻译)"
+            },
+            {
+                "title": "深海少女",
+                "artist": "初音ミク、ゆうゆ",
+                "hash": "e89a65c84cf6b85c8408cb1489acb773",
+                "desc": "术力口经典抒情慢歌 (逐字动感 + 罗马音 + 双语翻译)"
+            },
+            {
+                "title": "メルト (Melt)",
+                "artist": "Ryo、初音ミク",
+                "hash": "d77911d9332ef6ba1f55d0f47c2283c3",
+                "desc": "supercell / Ryo 极早期的黄金时代起点作"
+            },
+            {
+                "title": "ロミオとシンデレラ (罗密欧与辛德瑞拉)",
+                "artist": "doriko、初音ミク",
+                "hash": "bab453d1d3fd883e4077213796c27cc2",
+                "desc": "doriko 殿堂经典，三轨数据完整"
+            },
+            {
+                "title": "ロキ (ROKI)",
+                "artist": "鏡音リン、みきとP",
+                "hash": "bf6902f3529198e6b9a2b9125ebe5b76",
+                "desc": "超高燃双人快节奏互动对唱打点"
+            },
+            {
+                "title": "ヴァンパイア (吸血鬼)",
+                "artist": "DECO*27、初音ミク",
+                "hash": "63c13235c1469d1b716015c632ecda29",
+                "desc": "现代高热度舞曲风格 (逐字动感 + 罗马音 + 双语翻译)"
+            },
+            {
+                "title": "六兆年と一夜物語",
+                "artist": "kemu、IA",
+                "hash": "652b60a6633018ddec3945d964c22ec2",
+                "desc": "超高速 BPM 密集打点，考验逐字解析极限"
+            },
+            {
+                "title": "ロストワンの号哭",
+                "artist": "鏡音リン、Neru",
+                "hash": "04b8a9f6b08d9dcf1482aca0658cfcc7",
+                "desc": "Neru 摇滚摇滚疾走曲，动感极佳"
+            },
+            {
+                "title": "神っぽいな (像神一样呐)",
+                "artist": "ピノキオピー、初音ミク",
+                "hash": "d1912b08e1596a9ff593bb6dc669b632",
+                "desc": "匹诺曹P 讽刺风洗脑神曲"
+            },
+            {
+                "title": "アンノウン・マザーグース (Unknown Mother-Goose)",
+                "artist": "wowaka、初音ミク",
+                "hash": "e051d18d14531fcedda5e5e029eb92ff",
+                "desc": "wowaka 遗作绝唱，高密度文字与情感爆发"
+            }
+        ]
     },
-    {
-        "title": "ロキ (ROKI)",
-        "artist": "鏡音リン、みきとP",
-        "hash": "bf6902f3529198e6b9a2b9125ebe5b76",
-        "desc": "术力口Vocaloid 超高燃快节奏 (逐字动感 + 双语翻译)"
+
+    # --------------------------------------------------------------------------
+    # 分组 3：J-Pop 热门流行金曲 (Japanese Popular Music)
+    # --------------------------------------------------------------------------
+    "jpop": {
+        "name": "日文流行金曲 (J-Pop)",
+        "description": "热播流行曲目，具备逐字动感歌词与中文双语翻译",
+        "songs": [
+            {
+                "title": "夜に駆ける",
+                "artist": "YOASOBI",
+                "hash": "2131897fda53adbf58825cc3c61d0860",
+                "desc": "极高节奏动感流行，逐字双语打点"
+            },
+            {
+                "title": "Lemon",
+                "artist": "米津玄師",
+                "hash": "da60f11f69affc7107adede9dd17352a",
+                "desc": "日剧神曲，标准动感打点与双语翻译"
+            },
+            {
+                "title": "幽霊東京",
+                "artist": "Ayase、初音ミク",
+                "hash": "633586779348c8d1262fa43c528c3db1",
+                "desc": "都市感流行电子作"
+            }
+        ]
     },
-    {
-        "title": "ヴァンパイア (吸血鬼)",
-        "artist": "DECO*27、初音ミク",
-        "hash": "63c13235c1469d1b716015c632ecda29",
-        "desc": "术力口Vocaloid 现代高热度 (逐字动感 + 双语翻译)"
+
+    # --------------------------------------------------------------------------
+    # 分组 4：欧美流行热单 (Western Pop Hits)
+    # --------------------------------------------------------------------------
+    "western_pop": {
+        "name": "欧美流行热单 (Western Pop)",
+        "description": "英文原生逐词动感与中英双语翻译对照",
+        "songs": [
+            {
+                "title": "Rolling in the Deep",
+                "artist": "Adele",
+                "hash": "453cbdd4347ccbf2f6203f37c9d9597c",
+                "desc": "经典英文律动大单，逐词动感 + 中文字幕"
+            },
+            {
+                "title": "Shape of You",
+                "artist": "Ed Sheeran",
+                "hash": "b6a303c9cda8e6c4c0b2fb0b23a570c6",
+                "desc": "流行轻快节奏打击点"
+            }
+        ]
     },
-    {
-        "title": "夜に駆ける",
-        "artist": "YOASOBI",
-        "hash": "2131897fda53adbf58825cc3c61d0860",
-        "desc": "日文流行高节奏动感 (逐字动感 + 中文双语翻译)"
-    },
-    {
-        "title": "Lemon",
-        "artist": "米津玄師",
-        "hash": "da60f11f69affc7107adede9dd17352a",
-        "desc": "日文流行殿堂金曲 (逐字动感 + 中文双语翻译)"
-    },
-    {
-        "title": "Rolling in the Deep",
-        "artist": "Adele",
-        "hash": "453cbdd4347ccbf2f6203f37c9d9597c",
-        "desc": "欧美流行大热单曲 (逐字动感 + 中英双语翻译)"
-    },
-    {
-        "title": "Shape of You",
-        "artist": "Ed Sheeran",
-        "hash": "b6a303c9cda8e6c4c0b2fb0b23a570c6",
-        "desc": "欧美流行英文律动 (逐字动感 + 中英双语翻译)"
-    },
-    {
-        "title": "晴天",
-        "artist": "周杰伦",
-        "hash": "b3a52a7a958bf0aed0ebfba2e9a818b7",
-        "desc": "华语经典逐字动感标杆"
-    },
-    {
-        "title": "江南",
-        "artist": "林俊杰",
-        "hash": "b83dbb8e3dd3fcf86bf32690b91547f5",
-        "desc": "华语经典标准抒情逐字打点"
+
+    # --------------------------------------------------------------------------
+    # 分组 5：华语流行标杆 (Chinese Classics)
+    # --------------------------------------------------------------------------
+    "chinese_classics": {
+        "name": "华语经典流行 (Chinese Classics)",
+        "description": "原生中文单语极高品质动感逐字歌词标杆",
+        "songs": [
+            {
+                "title": "晴天",
+                "artist": "周杰伦",
+                "hash": "b3a52a7a958bf0aed0ebfba2e9a818b7",
+                "desc": "华语传唱标杆，极细粒度逐字时间轴"
+            },
+            {
+                "title": "江南",
+                "artist": "林俊杰",
+                "hash": "b83dbb8e3dd3fcf86bf32690b91547f5",
+                "desc": "中国风抒情转音打点"
+            }
+        ]
     }
-]
+}
+
+
+def get_all_songs():
+    all_songs = []
+    for g_key, group in SONG_GROUPS.items():
+        for s in group["songs"]:
+            s_copy = dict(s)
+            s_copy["group"] = g_key
+            s_copy["group_name"] = group["name"]
+            all_songs.append(s_copy)
+    return all_songs
+
 
 def search_hash(keyword: str):
     q = urllib.parse.quote(keyword)
@@ -95,7 +234,7 @@ def search_hash(keyword: str):
     req = urllib.request.Request(url, headers=HEADERS)
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read().decode("utf-8"))
-    
+
     info_list = data.get("data", {}).get("info", [])
     if not info_list:
         return None
@@ -104,8 +243,11 @@ def search_hash(keyword: str):
         "title": item.get("songname"),
         "artist": item.get("singername"),
         "hash": item.get("hash"),
-        "desc": "用户自定义查询"
+        "desc": "用户自定义搜索",
+        "group": "custom",
+        "group_name": "自定义搜索"
     }
+
 
 def fetch_and_decode_krc(song_hash: str):
     # 1. 查找 candidate (优先新接口，失败回退老接口)
@@ -118,28 +260,29 @@ def fetch_and_decode_krc(song_hash: str):
     }
     url = "http://lyrics.kugou.com/v1/search?" + urllib.parse.urlencode(p)
     req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req) as resp:
-        body = resp.read()
-        try:
-            data = json.loads(body.decode("utf-8"))
-        except Exception:
-            data = {}
-    
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        data = {}
+
     candidates = data.get("candidates", [])
     if not candidates:
-        # 回退 /search
-        p_legacy = { "ver": "1", "man": "yes", "client": "pc", "duration": "0", "hash": song_hash }
+        p_legacy = {"ver": "1", "man": "yes", "client": "pc", "duration": "0", "hash": song_hash}
         url_legacy = "http://lyrics.kugou.com/search?" + urllib.parse.urlencode(p_legacy)
         req_l = urllib.request.Request(url_legacy, headers=HEADERS)
-        with urllib.request.urlopen(req_l) as resp_l:
-            data = json.loads(resp_l.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(req_l) as resp_l:
+                data = json.loads(resp_l.read().decode("utf-8"))
+        except Exception:
+            data = {}
         candidates = data.get("candidates", [])
 
     if not candidates:
         return None, "未找到歌词候选 (candidates is empty)"
 
     c = candidates[0]
-    
+
     # 2. 下载 KRC
     down_p = {
         "ver": "1",
@@ -172,15 +315,20 @@ def fetch_and_decode_krc(song_hash: str):
     except Exception as e:
         return None, f"Zlib 解压失败: {e}"
 
-    # 5. 分析结构 (YRC 行数、双语翻译)
+    # 5. 分析结构 (YRC 行数、双语翻译、罗马音音译)
     yrc_lines = []
     has_language_tag = False
     trans_sample = ""
-    
+    roman_sample = ""
+    has_roman = False
+    has_trans = False
+
     # 检查外层 trans
     if d_data.get("trans"):
         try:
             trans_sample = base64.b64decode(d_data["trans"]).decode("utf-8").split("\n")[0].strip()
+            if trans_sample:
+                has_trans = True
         except Exception:
             pass
 
@@ -193,14 +341,21 @@ def fetch_and_decode_krc(song_hash: str):
                 b64 += "=" * ((4 - len(b64) % 4) % 4)
                 lang_json = json.loads(base64.b64decode(b64).decode("utf-8"))
                 for sec in lang_json.get("content", []):
-                    if sec.get("lyricContent"):
-                        first_item = sec["lyricContent"][0]
-                        trans_sample = (first_item[0] if isinstance(first_item, list) else str(first_item)).strip()
-                        break
+                    sec_type = sec.get("type")
+                    items = sec.get("lyricContent", [])
+                    if items:
+                        first_item = items[0]
+                        sample_str = (first_item[0] if isinstance(first_item, list) else str(first_item)).strip()
+                        if sec_type == 1 and not trans_sample:
+                            has_trans = True
+                            trans_sample = sample_str
+                        elif sec_type == 0 and not roman_sample:
+                            has_roman = True
+                            roman_sample = sample_str
             except Exception:
                 pass
         elif line.startswith("[") and "<" in line and ">" in line:
-            # 转换为 Lazer YRC
+            # 转换为 Lazer YRC 逐字高亮格式
             yrc = line.replace("<", "(").replace(">", ")")
             yrc_lines.append(yrc)
 
@@ -208,68 +363,107 @@ def fetch_and_decode_krc(song_hash: str):
         "candidate_id": c["id"],
         "raw_krc_len": len(decompressed_text),
         "yrc_line_count": len(yrc_lines),
-        "has_trans": bool(trans_sample) or has_language_tag,
-        "sample_lines": yrc_lines[:3],
-        "trans_sample": trans_sample
+        "has_trans": has_trans or (bool(trans_sample) and has_language_tag),
+        "has_roman": has_roman,
+        "trans_sample": trans_sample,
+        "roman_sample": roman_sample,
+        "sample_lines": yrc_lines[:2]
     }, None
 
-def run_test(target_songs):
-    print("=" * 70)
-    print("       🎵 酷狗逐字动感歌词 (KRC) 与双语翻译自动化测试")
-    print("=" * 70)
+
+def run_test(target_songs, header_title="酷狗逐字动感歌词 (KRC) 与多轨歌词测试"):
+    print("=" * 78)
+    print(f"       🎵 {header_title}")
+    print("=" * 78)
 
     success_count = 0
+    three_tier_count = 0
+
+    current_grp = None
     for idx, s in enumerate(target_songs, 1):
-        print(f"\n[{idx}/{len(target_songs)}] 正在验证: {s['title']} - {s['artist']} ({s.get('desc', '')})")
-        print(f"      Hash: {s['hash']}")
-        
+        grp_name = s.get("group_name")
+        if grp_name and grp_name != current_grp:
+            current_grp = grp_name
+            print(f"\n📂 【{current_grp}】")
+            print("-" * 78)
+
+        print(f"[{idx}/{len(target_songs)}] {s['title']} - {s['artist']}")
+        print(f"      Hash: {s['hash']}  |  说明: {s.get('desc', '')}")
+
         info, err = fetch_and_decode_krc(s["hash"])
         if err:
             print(f"      ❌ 测试失败: {err}")
             continue
 
         success_count += 1
-        print(f"      ✅ KRC 解密成功 (解密后大小: {info['raw_krc_len']} 字节)")
-        print(f"      ✨ 逐字动感歌词: 共 {info['yrc_line_count']} 行有效 YRC 数据")
-        print(f"      🌐 双语翻译支持: {'是' if info['has_trans'] else '否 (纯中文单语曲目)'}")
-        if info["trans_sample"]:
-            print(f"         翻译示例: {info['trans_sample']}")
-        
+        is_three_tier = info["has_roman"] and info["has_trans"]
+        if is_three_tier:
+            three_tier_count += 1
+
+        tier_tag = "🌟【三轨全齐：原文+罗马音+中文】" if is_three_tier else ("🌐【双语翻译】" if info["has_trans"] else "📝【单语动感】")
+
+        print(f"      ✅ 解密成功 (KRC 大小: {info['raw_krc_len']} 字节)  |  {tier_tag}")
+        print(f"      ✨ 逐字动感歌词: 共 {info['yrc_line_count']} 行有效 YRC 打点")
+        print(f"      🌐 中文翻译: {'✅ 有' if info['has_trans'] else '❌ 无'}" + (f" -> 示例: {info['trans_sample']}" if info['trans_sample'] else ""))
+        print(f"      🔤 罗马音音译: {'✅ 有' if info['has_roman'] else '❌ 无'}" + (f" -> 示例: {info['roman_sample']}" if info['roman_sample'] else ""))
+
         if info["sample_lines"]:
-            print("      📝 Lazer YRC 逐字高亮渲染样本:")
+            print("      💡 Lazer YRC 逐字打点片段:")
             for sample in info["sample_lines"]:
                 print(f"         {sample}")
+        print()
 
-    print("\n" + "=" * 70)
-    print(f"测试完毕: {success_count}/{len(target_songs)} 通过！")
-    print("=" * 70)
+    print("=" * 78)
+    print(f"测试完毕: {success_count}/{len(target_songs)} 首测试通过！其中 {three_tier_count} 首歌具备【三轨全齐】歌词。")
+    print("=" * 78)
+
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        query = sys.argv[1].strip()
+    args = sys.argv[1:]
+    
+    if args and args[0] in ("--help", "-h"):
+        print(__doc__)
+        sys.exit(0)
+
+    if args and args[0] == "--group":
+        if len(args) < 2:
+            print(f"可用分组: {list(SONG_GROUPS.keys())}")
+            sys.exit(1)
+        grp_key = args[1]
+        if grp_key not in SONG_GROUPS:
+            print(f"错误: 未知分组 '{grp_key}'，可用分组: {list(SONG_GROUPS.keys())}")
+            sys.exit(1)
+        target = [dict(s, group_name=SONG_GROUPS[grp_key]["name"]) for s in SONG_GROUPS[grp_key]["songs"]]
+        run_test(target, header_title=f"酷狗分组测试: {SONG_GROUPS[grp_key]['name']}")
+        sys.exit(0)
+
+    if args and args[0] == "--three-tier-only":
+        # 仅测试三轨齐备的歌曲
+        vocaloid_songs = []
+        for g in ("vocaloid_modern", "vocaloid_classics"):
+            for s in SONG_GROUPS[g]["songs"]:
+                vocaloid_songs.append(dict(s, group_name=SONG_GROUPS[g]["name"]))
+        run_test(vocaloid_songs, header_title="三轨全齐专属测试（新锐术力口 + 传世神曲）")
+        sys.exit(0)
+
+    if args:
+        query = args[0].strip()
         if len(query) == 32 and query.isalnum():
-            # 直接是 Hash
             target = [{
-                "title": "指定Hash曲目",
+                "title": "指定 Hash 曲目",
                 "artist": "-",
                 "hash": query,
-                "desc": "用户命令行传入 Hash"
+                "desc": "用户命令行传入 Hash",
+                "group_name": "单曲测试"
             }]
         else:
             found = search_hash(query)
             if not found:
-                print(f"错误: 搜索 '{query}' 未找到曲目")
+                print(f"错误: 搜索 '{query}' 未在酷狗曲库中找到对应歌曲")
                 sys.exit(1)
             target = [found]
-        run_test(target)
+        run_test(target, header_title=f"单曲歌词解析测试: {query}")
     else:
-        json_path = os.path.join(os.path.dirname(__file__), "songs.json")
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    loaded_songs = json.load(f)
-                    if loaded_songs:
-                        DEFAULT_SONGS = loaded_songs
-            except Exception:
-                pass
-        run_test(DEFAULT_SONGS)
+        # 默认回归测试：测试所有分组
+        all_songs = get_all_songs()
+        run_test(all_songs)
