@@ -229,8 +229,38 @@ function catalog.lyrics(args)
     }
   })
 
-  if legacyRes and legacyRes.candidates and type(legacyRes.candidates) == "table" and legacyRes.candidates[1] then
-    candidate = legacyRes.candidates[1]
+  -- 候选歌词智能多轨优先仲裁器：优先匹配三轨全齐 (content_format=4) 或含翻译/罗马音且具备动感打点的候选
+  local function pickBestCandidate(candidates)
+    if not candidates or type(candidates) ~= "table" or #candidates == 0 then return nil end
+    local best = candidates[1]
+    local bestWeight = -1
+    for _, c in ipairs(candidates) do
+      if c and c.id and c.accesskey then
+        local fmt = tonumber(c.content_format or "1") or 1
+        local krctype = tonumber(c.krctype or "1") or 1
+        -- 权重规则：三轨全齐 (fmt=4) 权重最高 (400)，双语翻译 (fmt=2) 为 300，罗马音 (fmt=3) 为 200，单语 (fmt=1) 为 100
+        local fmtWeight = 100
+        if fmt == 4 then
+          fmtWeight = 400
+        elseif fmt == 2 then
+          fmtWeight = 300
+        elseif fmt == 3 then
+          fmtWeight = 200
+        end
+        local krcWeight = (krctype == 2) and 50 or 0
+        local scoreWeight = tonumber(c.score or "0") or 0
+        local totalWeight = fmtWeight + krcWeight + scoreWeight
+        if totalWeight > bestWeight then
+          bestWeight = totalWeight
+          best = c
+        end
+      end
+    end
+    return best
+  end
+
+  if legacyRes and legacyRes.candidates and type(legacyRes.candidates) == "table" then
+    candidate = pickBestCandidate(legacyRes.candidates)
   end
 
   -- 回退尝试 /v1/search
@@ -248,8 +278,8 @@ function catalog.lyrics(args)
         duration = "0"
       }
     })
-    if searchRes and searchRes.candidates and type(searchRes.candidates) == "table" and searchRes.candidates[1] then
-      candidate = searchRes.candidates[1]
+    if searchRes and searchRes.candidates and type(searchRes.candidates) == "table" then
+      candidate = pickBestCandidate(searchRes.candidates)
     end
   end
 

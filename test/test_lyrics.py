@@ -74,7 +74,7 @@ SONG_GROUPS = {
                 "title": "今はいいんだよ。 (现在这样就好。)",
                 "artist": "MIMI、可不",
                 "hash": "195cd85b071a0fb1980ebdb53e324c50",
-                "desc": "MIMI 可不温柔抒情作，逐字动感节奏"
+                "desc": "MIMI 可不温柔抒情作，三轨齐备 (逐字动感 + 罗马音 + 翻译)"
             }
         ]
     },
@@ -287,7 +287,16 @@ def fetch_and_decode_krc(song_hash: str):
     if not candidates:
         return None, "未找到歌词候选 (candidates is empty)"
 
-    c = candidates[0]
+    # 智能多轨优先仲裁：优先选择 content_format 最高 (4=三轨全齐, 2=含翻译, 3=含罗马音) 且动感打点的候选
+    def candidate_weight(cand):
+        fmt = int(cand.get("content_format") or 1)
+        krctype = int(cand.get("krctype") or 1)
+        fmt_weight = {4: 400, 2: 300, 3: 200, 1: 100}.get(fmt, 100)
+        krc_weight = 50 if krctype == 2 else 0
+        score_weight = int(cand.get("score") or 0)
+        return fmt_weight + krc_weight + score_weight
+
+    c = max(candidates, key=candidate_weight)
 
     # 2. 下载 KRC
     down_p = {
