@@ -1,5 +1,9 @@
 # 🎵 Lazer Kugou Music Plugin (酷狗音乐插件)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-brightgreen.svg?style=flat-square)](manifest.json)
+[![Lazer: 2.0.210+](https://img.shields.io/badge/Lazer-2.0.210+-orange.svg?style=flat-square)](https://github.com/chuxuehaocai/Lazer)
+
 专为 [Lazer](https://github.com/chuxuehaocai/Lazer) 现代跨平台音乐播放器打造的**酷狗音乐（KuGou Music）官方/第三方 Lua Gateway 扩展插件**。
 
 ---
