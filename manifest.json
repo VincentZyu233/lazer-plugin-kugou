@@ -2,7 +2,7 @@
   "id": "lazer.kugou",
   "name": "酷狗音乐",
   "version": "0.2.1",
-  "description": "专为 Lazer 打造的酷狗音乐 Lua Gateway 插件，支持 KRC 逐字动感歌词与双语翻译、歌曲评论区、高品质音频流、云端收藏、歌单电台及扫码/短信双轨登录。",
+  "description": "专为 Lazer 打造的酷狗音乐 Lua Gateway 插件，支持扫码与短信双轨登录、歌单广场与个性化电台、高品质音频流、KRC 逐字动感歌词与双语翻译、歌曲评论区及云端收藏同步。",
   "author": "VincentZyu",
   "entry": "main.lua",
   "apiVersion": 1,
