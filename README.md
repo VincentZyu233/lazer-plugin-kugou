@@ -131,8 +131,8 @@ node tools/build.js
 
 ## 💖 鸣谢与致敬
 
-- [chuxuehaocai/Lazer](https://github.com/chuxuehaocai/Lazer) - 优雅而纯粹的手工打造跨平台音乐播放器。
-- [Linsxyx/KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) - 极其规范、完善的开源酷狗音乐客户端与协议逆向实现（MIT），为本项目提供了坚实的协议基础。
+- [chuxuehaocai/Lazer](https://github.com/chuxuehaocai/Lazer) - 优雅而纯粹的手工打造跨平台音乐播放器（AGPL-3.0），为本项目提供了核心扩展宿主与运行时环境。
+- [Linsxyx/KugouMusic.NET](https://github.com/Linsxyx/KugouMusic.NET) - 极其规范、完善的开源酷狗音乐客户端（MIT），其协议逆向实现为本项目提供了坚实的基础支撑。
 
 ---
 
